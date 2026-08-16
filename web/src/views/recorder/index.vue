@@ -301,66 +301,160 @@
       :with-header="true"
     >
       <div v-if="currentDetail" class="detail-content">
-        <div class="detail-section">
-          <h4 class="section-title">基本信息</h4>
-          <el-descriptions :column="2" border size="small">
-            <el-descriptions-item label="名称">{{ currentDetail.name }}</el-descriptions-item>
-            <el-descriptions-item label="语言">{{ currentDetail.language || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="起始 URL">{{ currentDetail.start_url || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="框架">{{ currentDetail.framework || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="定位器数">{{ currentDetail.locators_count ?? '—' }}</el-descriptions-item>
-            <el-descriptions-item label="动作数">{{ currentDetail.actions_count ?? '—' }}</el-descriptions-item>
-            <el-descriptions-item label="创建时间">{{ formatTime(currentDetail.created_at) || '—' }}</el-descriptions-item>
-          </el-descriptions>
-        </div>
+        <el-collapse v-model="detailSections" class="detail-collapse">
+          <!-- 基本信息 -->
+          <el-collapse-item name="basic" title="基本信息">
+            <el-descriptions :column="2" border size="small">
+              <el-descriptions-item label="名称">{{ currentDetail.name }}</el-descriptions-item>
+              <el-descriptions-item label="语言">{{ currentDetail.language || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="起始 URL">{{ currentDetail.start_url || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="框架">{{ currentDetail.framework || '—' }}</el-descriptions-item>
+              <el-descriptions-item label="定位器数">{{ currentDetail.locators_count ?? '—' }}</el-descriptions-item>
+              <el-descriptions-item label="动作数">{{ currentDetail.actions_count ?? '—' }}</el-descriptions-item>
+              <el-descriptions-item label="创建时间">{{ formatTime(currentDetail.created_at) || '—' }}</el-descriptions-item>
+            </el-descriptions>
+          </el-collapse-item>
 
-        <div class="detail-section">
-          <h4 class="section-title">
-            警告列表
-            <el-tag v-if="currentDetail.warnings && currentDetail.warnings.length > 0" size="small" type="warning" effect="light" class="section-tag">
-              {{ currentDetail.warnings.length }}
-            </el-tag>
-          </h4>
-          <el-empty v-if="!currentDetail.warnings || currentDetail.warnings.length === 0" description="无警告" :image-size="60" />
-          <el-alert
-            v-for="(warn, idx) in (currentDetail.warnings || [])"
-            :key="idx"
-            :title="warn"
-            type="warning"
-            :closable="false"
-            show-icon
-            class="warn-item"
-          />
-        </div>
+          <!-- 警告列表：无警告时整个区块隐藏 -->
+          <el-collapse-item
+            v-if="currentDetail.warnings && currentDetail.warnings.length > 0"
+            name="warnings"
+            :title="`警告列表（${currentDetail.warnings.length}）`"
+          >
+            <el-alert
+              v-for="(warn, idx) in currentDetail.warnings"
+              :key="idx"
+              :title="warn"
+              type="warning"
+              :closable="false"
+              show-icon
+              class="warn-item"
+            />
+          </el-collapse-item>
 
-        <div class="detail-section">
-          <h4 class="section-title">动作列表</h4>
-          <el-table :data="currentDetail.actions || []" stripe size="small" max-height="300">
-            <el-table-column type="index" label="#" width="60" align="center" />
-            <el-table-column prop="action_type" label="动作类型" min-width="120" />
-            <el-table-column prop="target" label="目标" min-width="200" show-overflow-tooltip />
-            <el-table-column prop="value" label="值" min-width="160" show-overflow-tooltip />
-          </el-table>
-        </div>
+          <!-- 动作列表 -->
+          <el-collapse-item name="actions" title="动作列表">
+            <el-table
+              :data="currentDetail.actions || []"
+              stripe
+              size="small"
+              max-height="320"
+              empty-text="该脚本未解析出动作（可能为手动导入的非常规脚本）"
+            >
+              <el-table-column type="index" label="#" width="55" align="center" />
+              <el-table-column prop="type" label="动作类型" min-width="100" />
+              <el-table-column label="目标元素" min-width="220" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span v-if="row.name">{{ row.name }}</span>
+                  <code v-if="row.locator_value" class="action-locator">{{ row.locator_value }}</code>
+                  <span v-else-if="!row.name" class="empty-tip">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="值" min-width="140" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <code v-if="row.value != null" class="action-value">{{ row.value }}</code>
+                  <span v-else class="empty-tip">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="原始行" min-width="220" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <code class="action-raw">{{ row.raw || '—' }}</code>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-collapse-item>
 
-        <div class="detail-section">
-          <h4 class="section-title">脚本内容</h4>
-          <el-tabs v-model="scriptTab">
-            <el-tab-pane label="原始脚本" name="raw">
-              <pre class="code-block">{{ currentDetail.raw_content || '—' }}</pre>
-            </el-tab-pane>
-            <el-tab-pane label="标准化脚本（AI 重组）" name="normalized">
-              <div v-if="currentDetail.normalized_content" class="norm-header">
-                <el-tag type="success" size="small" effect="light">已重组</el-tag>
-                <span class="norm-tip">通过默认脚手架重组的标准稳定脚本</span>
-              </div>
-              <pre v-if="currentDetail.normalized_content" class="code-block">{{ currentDetail.normalized_content }}</pre>
-              <el-empty v-else description="尚未 AI 重组：点击列表中的【AI 重组】生成" :image-size="70" />
-            </el-tab-pane>
-          </el-tabs>
-        </div>
+          <!-- 脚本内容 -->
+          <el-collapse-item name="script" title="脚本内容">
+            <el-tabs v-model="scriptTab">
+              <el-tab-pane label="原始脚本" name="raw">
+                <pre class="code-block">{{ currentDetail.raw_content || '—' }}</pre>
+              </el-tab-pane>
+              <el-tab-pane label="标准化脚本（AI 重组）" name="normalized">
+                <div v-if="currentDetail.normalized_content" class="norm-header">
+                  <el-tag type="success" size="small" effect="light">已重组</el-tag>
+                  <span class="norm-tip">通过默认脚手架重组的标准稳定脚本</span>
+                </div>
+                <pre v-if="currentDetail.normalized_content" class="code-block">{{ currentDetail.normalized_content }}</pre>
+                <el-empty v-else description="尚未 AI 重组：点击列表中的【AI 重组】生成" :image-size="70" />
+              </el-tab-pane>
+            </el-tabs>
+          </el-collapse-item>
+        </el-collapse>
       </div>
     </el-drawer>
+
+    <!-- 回放查看弹窗（P4：录制中心内嵌，不跳转） -->
+    <el-dialog
+      v-model="replayDialogVisible"
+      :title="replayDialogTitle"
+      width="780px"
+      destroy-on-close
+      :close-on-click-modal="false"
+    >
+      <div v-loading="replayListLoading" class="replay-dialog-body">
+        <div class="replay-toolbar">
+          <el-button
+            type="primary"
+            :icon="VideoPlay"
+            :loading="replaying"
+            :disabled="!replayDialogRecordingId"
+            @click="handleTriggerReplay"
+          >
+            {{ replaying ? '回放执行中…' : '执行回放' }}
+          </el-button>
+          <el-text type="info" size="small">
+            回放将录制 trace 与视频，完成后可在此查看
+          </el-text>
+        </div>
+
+        <el-empty
+          v-if="!replayListLoading && replayRuns.length === 0"
+          description="该录制暂无回放记录，点击【执行回放】开始"
+          :image-size="70"
+        />
+
+        <!-- 回放记录列表 -->
+        <el-table v-else :data="replayRuns" stripe size="small" highlight-current-row @current-change="handleReplayRowChange">
+          <el-table-column prop="id" label="ID" width="70" align="center" />
+          <el-table-column label="状态" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag :type="statusTagType(row.status)" size="small" effect="light">
+                {{ statusText(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="步骤" width="100" align="center">
+            <template #default="{ row }">
+              {{ row.steps_passed ?? 0 }}/{{ row.steps_total ?? '—' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="视频" width="80" align="center">
+            <template #default="{ row }">
+              <el-icon :color="row.video_available ? '#67c23a' : '#c0c4cc'" :size="16">
+                <VideoCamera />
+              </el-icon>
+            </template>
+          </el-table-column>
+          <el-table-column prop="created_at" label="时间" min-width="160">
+            <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+          </el-table-column>
+        </el-table>
+
+        <!-- 视频播放 -->
+        <div v-if="currentReplayVideoUrl" class="replay-video-box">
+          <video :src="currentReplayVideoUrl" controls autoplay style="width: 100%; border-radius: 6px; background: #000" />
+        </div>
+        <el-alert
+          v-else-if="replayRuns.length > 0"
+          type="info"
+          :closable="false"
+          show-icon
+          title="选中一条有视频的回放记录即可播放；无录像记录说明回放时未生成视频"
+          class="replay-video-tip"
+        />
+      </div>
+    </el-dialog>
 
     <!-- 删除确认对话框 -->
     <el-dialog
@@ -416,6 +510,7 @@ import {
   stopCodegen,
   normalizeRecording,
 } from '@/api/recording'
+import { getReplayList, startReplayAsync } from '@/api/replay'
 import { formatTime } from '@/utils/format'
 
 // ---- state ----
@@ -461,6 +556,17 @@ const detailDrawerVisible = ref(false)
 const currentDetail = ref(null)
 const detailLoading = ref(false)
 const scriptTab = ref('raw')
+const detailSections = ref(['basic', 'actions', 'script'])
+
+// ---- P4：回放内嵌查看 ----
+const replayDialogVisible = ref(false)
+const replayDialogTitle = ref('回放')
+const replayDialogRecordingId = ref(null)
+const replayListLoading = ref(false)
+const replayRuns = ref([])
+const replaying = ref(false)
+const currentReplayVideoUrl = ref('')
+let replayPollTimer = null
 
 const deleteDialogVisible = ref(false)
 const deletingRow = ref(null)
@@ -487,6 +593,15 @@ const NORMALIZE_MAP = {
 
 function normalizeTagType(s) { return NORMALIZE_MAP[s]?.type || 'info' }
 function normalizeText(s) { return NORMALIZE_MAP[s]?.text || s || '未重组' }
+
+// 回放状态
+const REPLAY_STATUS_MAP = {
+  success: { text: '成功', type: 'success' },
+  failed: { text: '失败', type: 'danger' },
+  running: { text: '执行中', type: 'primary' },
+}
+function statusTagType(s) { return REPLAY_STATUS_MAP[s]?.type || 'info' }
+function statusText(s) { return REPLAY_STATUS_MAP[s]?.text || s || '未知' }
 
 // ---- actions ----
 async function fetchList() {
@@ -606,9 +721,73 @@ async function handleNormalize(row) {
   }
 }
 
-// ---- 回放 ----
-function handleReplay(row) {
-  window.open(`/obs/replay?recording_id=${row.id}`, '_blank')
+// ---- 回放（录制中心内嵌查看，不跳转） ----
+async function handleReplay(row) {
+  replayDialogRecordingId.value = row.id
+  replayDialogTitle.value = `回放 - ${row.name}`
+  replayDialogVisible.value = true
+  currentReplayVideoUrl.value = ''
+  replayRuns.value = []
+  await loadReplayRuns(row.id)
+}
+
+async function loadReplayRuns(recordingId) {
+  replayListLoading.value = true
+  try {
+    const data = await getReplayList({ recording_id: recordingId })
+    replayRuns.value = Array.isArray(data) ? data : (data?.results || [])
+    // 自动选中第一条有视频的记录
+    const withVideo = replayRuns.value.find((r) => r.video_available)
+    if (withVideo) {
+      currentReplayVideoUrl.value = withVideo.video_url || ''
+    }
+  } catch (e) {
+    replayRuns.value = []
+  } finally {
+    replayListLoading.value = false
+  }
+}
+
+function handleReplayRowChange(row) {
+  if (!row) return
+  currentReplayVideoUrl.value = row.video_available ? (row.video_url || '') : ''
+}
+
+async function handleTriggerReplay() {
+  const id = replayDialogRecordingId.value
+  if (!id) return
+  replaying.value = true
+  try {
+    await startReplayAsync(id)
+    ElMessage.info('回放已启动，执行中…')
+    // 轮询直到终态后刷新列表
+    let rounds = 0
+    replayPollTimer = setInterval(async () => {
+      rounds += 1
+      try {
+        const data = await getReplayList({ recording_id: id })
+        const runs = Array.isArray(data) ? data : (data?.results || [])
+        const running = runs.some((r) => r.status === 'running')
+        if (!running || rounds > 60) {
+          clearInterval(replayPollTimer)
+          replayPollTimer = null
+          replaying.value = false
+          ElMessage.success('回放完成')
+          replayRuns.value = runs
+          const withVideo = runs.find((r) => r.video_available)
+          if (withVideo) currentReplayVideoUrl.value = withVideo.video_url || ''
+        } else {
+          replayRuns.value = runs
+        }
+      } catch (e) {
+        clearInterval(replayPollTimer)
+        replayPollTimer = null
+        replaying.value = false
+      }
+    }, 3000)
+  } catch (err) {
+    replaying.value = false
+  }
 }
 
 // ---- 手动录制弹窗 ----
@@ -740,6 +919,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (codegenPollTimer) clearInterval(codegenPollTimer)
   if (normalizePollTimer) clearInterval(normalizePollTimer)
+  if (replayPollTimer) clearInterval(replayPollTimer)
 })
 </script>
 
@@ -999,6 +1179,47 @@ onBeforeUnmount(() => {
 .norm-tip {
   font-size: 12.5px;
   color: var(--do-fg-tertiary);
+}
+
+/* P4：详情折叠 + 动作列表 + 回放弹窗 */
+.detail-collapse {
+  border: none;
+}
+
+.detail-collapse :deep(.el-collapse-item__header) {
+  font-weight: 600;
+  color: var(--do-fg);
+}
+
+.action-locator,
+.action-value,
+.action-raw {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  color: var(--do-primary);
+  word-break: break-all;
+}
+
+.action-value { color: var(--do-success); }
+.action-raw { color: var(--do-fg-tertiary); }
+
+.replay-dialog-body {
+  min-height: 120px;
+}
+
+.replay-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.replay-video-box {
+  margin-top: 14px;
+}
+
+.replay-video-tip {
+  margin-top: 14px;
 }
 
 .delete-dialog-body {
