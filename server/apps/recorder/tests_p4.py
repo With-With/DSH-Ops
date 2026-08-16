@@ -75,11 +75,13 @@ class NormalizerTests(TestCase):
         normalize_recording(self.rec)
         self.rec.refresh_from_db()
         content = self.rec.normalized_content
+        # P4 升级：POM 页面对象脚手架
         self.assertIn("pytest", content)
-        self.assertIn("browser_page", content)
+        self.assertIn("class BasePage", content)          # POM 基类
+        self.assertIn("class LoginPage", content)         # 页面对象类
+        self.assertIn("@pytest.fixture", content)         # fixtures
+        self.assertIn("def test_", content)               # pytest 用例
         self.assertIn("channel=", content)
-        self.assertIn("test_main_flow", content)
-        self.assertIn("page.goto", content)
         self.assertFalse(normalize_is_running(self.rec.id))
 
     @patch.dict("os.environ", {"DSHOPS_AGENT_MODE": "mock"}, clear=False)
@@ -138,8 +140,11 @@ class NormalizerTests(TestCase):
         normalize_recording(self.rec)  # 主线程同步执行，写入可见
         detail = self.client.get(f"/api/recordings/{self.rec.id}/").json()
         self.assertEqual(detail["normalize_status"], "done")
-        self.assertIn("test_main_flow", detail["normalized_content"])
+        self.assertIn("class BasePage", detail["normalized_content"])
 
     def test_scaffold_contains_required_marks(self):
-        self.assertIn("# STEP:", SCAFFOLD_TEMPLATE)
-        self.assertIn('channel="chromium"', SCAFFOLD_TEMPLATE)
+        # P4 升级：POM 脚手架标记
+        self.assertIn("class BasePage", SCAFFOLD_TEMPLATE)
+        self.assertIn("class LoginPage", SCAFFOLD_TEMPLATE)
+        self.assertIn("@pytest.fixture", SCAFFOLD_TEMPLATE)
+        self.assertIn("channel=BROWSER_CHANNEL", SCAFFOLD_TEMPLATE)

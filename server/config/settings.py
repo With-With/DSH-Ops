@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "apps.ai_config",
     "apps.testdata",
     "apps.obs_center",
+    "apps.testcases",
     "apps.mcp",
 ]
 
