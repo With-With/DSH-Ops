@@ -3,7 +3,7 @@
     <el-card shadow="never" class="main-card">
       <template #header>
         <div class="card-header">
-          <span class="card-title">元素仓</span>
+          <span class="card-title">元素管理</span>
           <el-button type="primary" :icon="Search" @click="queryDialogVisible = true">
             search-first 查询测试
           </el-button>

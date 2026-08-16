@@ -17,19 +17,19 @@ const routes = [
         path: 'assets',
         name: 'Assets',
         component: () => import('@/views/assets/index.vue'),
-        meta: { title: '元素仓', icon: 'Picture' },
+        meta: { title: '元素管理', icon: 'Picture', group: 'UI自动化测试' },
       },
       {
         path: 'tasksets',
         name: 'TaskSets',
         component: () => import('@/views/tasksets/index.vue'),
-        meta: { title: '任务集', icon: 'Collection' },
+        meta: { title: '任务集', icon: 'Collection', group: 'UI自动化测试' },
       },
       {
         path: 'reviews',
         name: 'Reviews',
         component: () => import('@/views/reviews/index.vue'),
-        meta: { title: '评审中心', icon: 'Message' },
+        meta: { title: '评审中心', icon: 'Message', group: 'UI自动化测试' },
       },
       {
         path: 'ai-config',
@@ -37,7 +37,7 @@ const routes = [
         component: () => import('@/views/ai-config/index.vue'),
         meta: { title: 'AI 配置', icon: 'MagicStick' },
       },
-      // 观测中心分组：概览 + 录制 + 回放（P4 导航重排）
+      // 观测中心分组：概览 + 录制 + 回放
       {
         path: 'obs',
         name: 'ObsOverview',
@@ -55,6 +55,31 @@ const routes = [
         name: 'ObsReplay',
         component: () => import('@/views/replay/index.vue'),
         meta: { title: '回放中心', icon: 'VideoPlay', group: '观测中心' },
+      },
+      // UI自动化测试：用例/套件/执行记录/报告（P5 骨架占位）
+      {
+        path: 'testcases',
+        name: 'TestCases',
+        component: () => import('@/views/modules/testcases.vue'),
+        meta: { title: '用例管理', icon: 'Document', group: 'UI自动化测试' },
+      },
+      {
+        path: 'suites',
+        name: 'Suites',
+        component: () => import('@/views/modules/suites.vue'),
+        meta: { title: '套件管理', icon: 'Folder', group: 'UI自动化测试' },
+      },
+      {
+        path: 'executions',
+        name: 'Executions',
+        component: () => import('@/views/modules/executions.vue'),
+        meta: { title: '执行记录', icon: 'Timer', group: 'UI自动化测试' },
+      },
+      {
+        path: 'reports',
+        name: 'Reports',
+        component: () => import('@/views/modules/reports.vue'),
+        meta: { title: '报告管理', icon: 'DataBoard', group: 'UI自动化测试' },
       },
     ],
   },

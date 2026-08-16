@@ -18,20 +18,33 @@
       class="sidebar-menu"
     >
       <template v-for="item in menuTree" :key="item.key">
-        <!-- 分组子菜单 -->
+        <!-- 一级分组 -->
         <el-sub-menu v-if="item.children" :index="item.key">
           <template #title>
             <el-icon><component :is="item.icon" /></el-icon>
             <span>{{ item.title }}</span>
           </template>
-          <el-menu-item
-            v-for="child in item.children"
-            :key="child.path"
-            :index="child.path"
-          >
-            <el-icon><component :is="child.icon" /></el-icon>
-            <template #title><span>{{ child.title }}</span></template>
-          </el-menu-item>
+          <!-- 二级：普通菜单项 或 二级分组 -->
+          <template v-for="child in item.children" :key="child.key || child.path">
+            <el-sub-menu v-if="child.children" :index="child.key">
+              <template #title>
+                <el-icon><component :is="child.icon" /></el-icon>
+                <span>{{ child.title }}</span>
+              </template>
+              <el-menu-item
+                v-for="leaf in child.children"
+                :key="leaf.path"
+                :index="leaf.path"
+              >
+                <el-icon><component :is="leaf.icon" /></el-icon>
+                <template #title><span>{{ leaf.title }}</span></template>
+              </el-menu-item>
+            </el-sub-menu>
+            <el-menu-item v-else :index="child.path">
+              <el-icon><component :is="child.icon" /></el-icon>
+              <template #title><span>{{ child.title }}</span></template>
+            </el-menu-item>
+          </template>
         </el-sub-menu>
         <!-- 普通菜单项 -->
         <el-menu-item v-else :index="item.path">
@@ -66,18 +79,29 @@ const route = useRoute()
 
 const menuTree = [
   { key: 'runtimes', path: '/runtimes', title: '配置中心', icon: 'Cpu' },
-  { key: 'assets', path: '/assets', title: '元素仓', icon: 'Picture' },
-  { key: 'tasksets', path: '/tasksets', title: '任务集', icon: 'Collection' },
-  { key: 'reviews', path: '/reviews', title: '评审中心', icon: 'Message' },
   { key: 'ai-config', path: '/ai-config', title: 'AI 配置', icon: 'MagicStick' },
-  // P4：观测中心分组（概览 + 录制 + 回放；回放中心已并入录制中心行内回放，#9）
+  // UI 自动化测试分组：元素管理/任务集/评审中心/观测中心/用例/套件/执行记录/报告
   {
-    key: 'obs-group',
-    title: '观测中心',
-    icon: 'DataLine',
+    key: 'ui-group',
+    title: 'UI自动化测试',
+    icon: 'Monitor',
     children: [
-      { path: '/obs', title: '观测概览', icon: 'DataAnalysis' },
-      { path: '/obs/recorder', title: '录制中心', icon: 'VideoCamera' },
+      { path: '/assets', title: '元素管理', icon: 'Picture' },
+      { path: '/tasksets', title: '任务集', icon: 'Collection' },
+      { path: '/reviews', title: '评审中心', icon: 'Message' },
+      {
+        key: 'obs-group',
+        title: '观测中心',
+        icon: 'DataLine',
+        children: [
+          { path: '/obs', title: '观测概览', icon: 'DataAnalysis' },
+          { path: '/obs/recorder', title: '录制中心', icon: 'VideoCamera' },
+        ],
+      },
+      { path: '/testcases', title: '用例管理', icon: 'Document' },
+      { path: '/suites', title: '套件管理', icon: 'Folder' },
+      { path: '/executions', title: '执行记录', icon: 'Timer' },
+      { path: '/reports', title: '报告管理', icon: 'DataBoard' },
     ],
   },
 ]
