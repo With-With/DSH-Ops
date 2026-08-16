@@ -403,6 +403,7 @@ import {
   Document,
   Search,
   List,
+  InfoFilled,
 } from '@element-plus/icons-vue'
 import {
   getRecordingList,
@@ -873,6 +874,74 @@ onBeforeUnmount(() => {
 .upload-tip {
   font-size: 12px;
   color: var(--do-fg-tertiary);
+}
+
+/* 手动录制弹窗 */
+.manual-dialog :deep(.el-dialog__body) {
+  padding: 20px 24px 16px;
+}
+
+.manual-dialog :deep(.el-dialog__footer) {
+  padding: 14px 24px 20px;
+}
+
+.manual-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.label-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--do-fg, #303133);
+}
+
+.label-required {
+  color: var(--el-color-danger, #f56c6c);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.content-textarea :deep(.el-textarea__inner) {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: var(--do-bg-soft, #fafafa);
+}
+
+.textarea-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--do-fg-tertiary, #909399);
+}
+
+.textarea-hint .el-icon {
+  font-size: 14px;
+  color: var(--do-primary-soft, #79bbff);
 }
 
 .empty-tip {
