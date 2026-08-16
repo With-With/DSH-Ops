@@ -1,0 +1,73 @@
+/* ============================================================
+ * DSH-Ops Design Tokens — Theme Variables
+ * 命名空间: --do-*  (DSH-Ops)
+ * 为多皮肤（M2）打底：新增皮肤只需在 :root.<theme-name> 下覆盖变量
+ * ============================================================ */
+
+:root {
+  /* ---------- 基础色 ---------- */
+  --do-bg: #f5f7fa;
+  --do-bg-page: #ffffff;
+  --do-fg: #303133;
+  --do-fg-secondary: #606266;
+  --do-fg-tertiary: #909399;
+  --do-border: #dcdfe6;
+  --do-border-light: #e4e7ed;
+
+  /* ---------- 品牌色 ---------- */
+  --do-primary: #409eff;
+  --do-primary-hover: #66b1ff;
+  --do-success: #67c23a;
+  --do-warning: #e6a23c;
+  --do-danger: #f56c6c;
+  --do-info: #909399;
+
+  /* ---------- 侧边栏 ---------- */
+  --do-sidebar-bg: #304156;
+  --do-sidebar-bg-hover: #263445;
+  --do-sidebar-text: #bfcbd9;
+  --do-sidebar-text-active: #ffffff;
+  --do-sidebar-width: 220px;
+  --do-sidebar-width-collapsed: 64px;
+
+  /* ---------- 头部 ---------- */
+  --do-header-bg: #ffffff;
+  --do-header-height: 60px;
+  --do-header-border: #e4e7ed;
+
+  /* ---------- 过渡 ---------- */
+  --do-transition-base: 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+
+  /* ---------- 阴影 ---------- */
+  --do-shadow-light: 0 2px 12px 0 rgba(0, 0, 0, 0.08);
+  --do-shadow-base: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* ---------- 暗色主题 ---------- */
+html.dark {
+  --do-bg: #141414;
+  --do-bg-page: #1d1e1f;
+  --do-fg: #e5eaf3;
+  --do-fg-secondary: #cfd3dc;
+  --do-fg-tertiary: #a3a6ad;
+  --do-border: #4c4d4f;
+  --do-border-light: #363637;
+
+  --do-primary: #409eff;
+  --do-primary-hover: #79bbff;
+  --do-success: #67c23a;
+  --do-warning: #e6a23c;
+  --do-danger: #f56c6c;
+  --do-info: #909399;
+
+  --do-sidebar-bg: #1f2d3d;
+  --do-sidebar-bg-hover: #18222e;
+  --do-sidebar-text: #a3a6ad;
+  --do-sidebar-text-active: #ffffff;
+
+  --do-header-bg: #1d1e1f;
+  --do-header-border: #363637;
+
+  --do-shadow-light: 0 2px 12px 0 rgba(0, 0, 0, 0.3);
+  --do-shadow-base: 0 2px 12px 0 rgba(0, 0, 0, 0.4);
+}

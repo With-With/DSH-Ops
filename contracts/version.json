@@ -1,0 +1,5 @@
+{
+  "contracts": "0.1.0",
+  "dsh_pinned": "0.1.0-rc.6",
+  "notes": "P0 草案；semver：破坏性变更升 major"
+}

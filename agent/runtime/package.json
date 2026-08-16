@@ -1,0 +1,12 @@
+{
+  "name": "dsh-ops-agent-runtime",
+  "private": true,
+  "description": "DSH-Ops 平台专用的 DeepSeek Harness 运行时（锁版本；DSH_HOME 指向 ../home）",
+  "type": "module",
+  "engines": {
+    "node": ">=20 <25"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.0-rc.6"
+  }
+}

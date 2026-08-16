@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-ops.local/contracts/mock.schema.json",
+  "title": "DSH-Ops Mock Rules Schema",
+  "description": "Mock 规则集定义。用于测试中拦截 HTTP 请求并返回预置响应，支持按用例、任务集或全局范围生效。A2/A4 消费，Django 侧存储和管理。",
+  "type": "object",
+  "required": ["schema_version", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0-dev",
+      "description": "契约版本号。"
+    },
+    "rules": {
+      "type": "array",
+      "description": "Mock 规则列表，按 priority 降序匹配（数值越大越优先匹配）。",
+      "items": { "$ref": "#/$defs/rule" }
+    }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "description": "单条 Mock 规则：匹配条件 + 响应内容 + 作用范围。",
+      "required": [
+        "id",
+        "name",
+        "scope",
+        "match",
+        "respond",
+        "enabled",
+        "priority"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "规则唯一标识，如 mock_0、login_success_mock。"
+        },
+        "name": {
+          "type": "string",
+          "description": "规则名称，中文描述，如「登录成功响应」「获取用户信息-空数据」。"
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["case", "taskset", "global"],
+          "description": "生效范围：case=单个测试用例（通过 mock_ref 关联），taskset=任务集/测试套，global=全局默认。"
+        },
+        "match": {
+          "type": "object",
+          "description": "请求匹配条件。",
+          "required": ["method", "url_pattern"],
+          "additionalProperties": false,
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": ["GET", "POST", "PUT", "DELETE", "PATCH", "*"],
+              "description": "HTTP 方法。* 表示匹配任意方法。"
+            },
+            "url_pattern": {
+              "type": "string",
+              "description": "URL 匹配模式，支持通配符或正则，如 /api/login、/api/user/*。"
+            }
+          }
+        },
+        "respond": {
+          "type": "object",
+          "description": "响应定义。",
+          "required": ["status", "body", "delay_ms"],
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599,
+              "description": "HTTP 响应状态码。"
+            },
+            "body": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "object" }
+              ],
+              "description": "响应体：字符串（如 HTML/纯文本）或对象（JSON 格式，运行时序列化为 JSON）。"
+            },
+            "delay_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "响应延迟，单位毫秒。用于模拟网络延迟或服务端处理时间。"
+            }
+          }
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "是否启用。false 时该规则不参与匹配，便于临时禁用。",
+          "default": true
+        },
+        "priority": {
+          "type": "integer",
+          "description": "优先级，数值越大越先匹配。当多个规则都匹配时，使用优先级最高的。",
+          "default": 0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-ops.local/contracts/pom.schema.json",
+  "title": "DSH-Ops POM (Page Object Model) Schema",
+  "description": "A1 Agent 从录制脚本 + trace 回放中提取的页面对象模型（POM）产物。包含页面、元素、动作序列和上提参数。Django 侧校验入库，A2/A4/A5 消费。",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "source",
+    "pages",
+    "elements",
+    "actions",
+    "params",
+    "confidence"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0-dev",
+      "description": "契约版本号，用于双端兼容性检查。破坏性变更必须升 major。"
+    },
+    "source": {
+      "type": "object",
+      "description": "溯源信息：本次 POM 提取来自哪条录制和哪个 trace 产物。",
+      "required": ["recording_id", "trace_artifact_id"],
+      "additionalProperties": false,
+      "properties": {
+        "recording_id": {
+          "type": "string",
+          "description": "录制记录 ID，关联 Django ui_automation_recording 表。"
+        },
+        "trace_artifact_id": {
+          "type": "string",
+          "description": "Playwright trace 产物 ID，用于回放和元素快照溯源。"
+        }
+      }
+    },
+    "pages": {
+      "type": "array",
+      "description": "从录制中识别出的页面对象列表。",
+      "items": { "$ref": "#/$defs/page" }
+    },
+    "elements": {
+      "type": "array",
+      "description": "从录制中识别出的元素（控件）列表，按页面分组。",
+      "items": { "$ref": "#/$defs/element" }
+    },
+    "actions": {
+      "type": "array",
+      "description": "录制动作序列，按执行顺序排列，index 从 0 开始。",
+      "items": { "$ref": "#/$defs/action" }
+    },
+    "params": {
+      "type": "array",
+      "description": "字面量上提（literal hoisting）产物：从动作值中抽取的命名参数，便于数据驱动和 secret 管理。",
+      "items": { "$ref": "#/$defs/param" }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "A1 对本次提取整体质量的置信度（0-1）。低于阈值（如 0.7）时触发人工二次确认。"
+    }
+  },
+  "$defs": {
+    "page": {
+      "type": "object",
+      "description": "页面对象：一个逻辑页面（如登录页、首页），对应一个或多个 URL 模式。",
+      "required": ["id", "name", "url_pattern"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "页面唯一标识（本次提取内），通常为 page_0、page_1。"
+        },
+        "name": {
+          "type": "string",
+          "description": "中文页面对象名，如「登录页」「商品详情页」。"
+        },
+        "url_pattern": {
+          "type": "string",
+          "description": "归一化 URL 模式，支持 {param} 占位符，如 /login 或 /product/{product_id}。"
+        },
+        "matched_existing_page_id": {
+          "type": ["string", "null"],
+          "description": "search-first 命中元素仓已有页面时填写其 ID；空表示未命中、为新页面。",
+          "default": null
+        }
+      }
+    },
+    "element": {
+      "type": "object",
+      "description": "页面元素（控件）：如输入框、按钮、下拉框等，包含多种定位器候选。",
+      "required": [
+        "id",
+        "page_id",
+        "name",
+        "role",
+        "candidates",
+        "exists_in_repo"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "元素唯一标识（本次提取内），如 elem_0、elem_1。"
+        },
+        "page_id": {
+          "type": "string",
+          "description": "所属页面 ID，对应 pages[].id。"
+        },
+        "name": {
+          "type": "string",
+          "description": "中文元素名，如「用户名输入框」「登录按钮」。"
+        },
+        "role": {
+          "type": "string",
+          "description": "ARIA role，如 textbox、button、link、checkbox、combobox。"
+        },
+        "candidates": {
+          "type": "array",
+          "description": "定位器候选列表，按优先级从高到低排列。运行时按顺序尝试，失败则降级。",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/locator_candidate" }
+        },
+        "snapshot_hash": {
+          "type": ["string", "null"],
+          "description": "该元素录制时 aria 快照的 hash，用于后续自修复时比对元素是否变更。",
+          "default": null
+        },
+        "exists_in_repo": {
+          "type": "boolean",
+          "description": "search-first 标志：true 表示该元素已存在于元素仓（通过快照/定位器匹配命中），false 表示为新元素。命中时可复用已有定位策略，减少重复提取。"
+        }
+      }
+    },
+    "locator_candidate": {
+      "type": "object",
+      "description": "单个定位器候选。多种定位方式互为备份，提高脚本健壮性。",
+      "required": ["type", "value", "priority", "robustness"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["role", "text", "label", "placeholder", "testid", "css", "xpath", "aria_ref"],
+          "description": "定位器类型：role=ARIA role+name，text=文本内容，label=关联 label 文本，placeholder=占位符文本，testid=data-testid 属性，css/xpath=选择器，aria_ref=引用 aria 快照。"
+        },
+        "value": {
+          "type": "string",
+          "description": "定位器值，如 type=role 时为 role 名，type=css 时为 CSS 选择器。"
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "优先级，数值越小优先级越高（0 最高）。运行时按 priority 升序尝试。"
+        },
+        "robustness": {
+          "type": "string",
+          "enum": ["strong", "medium", "weak"],
+          "description": "健壮性评级：strong（如 testid、aria role+name）几乎不变；medium（如 label、placeholder）随文案可能变；weak（如绝对 xpath、nth-child）易失效。"
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "description": "录制动作：一次用户交互，如点击、输入、跳转。按 index 顺序构成完整流程。",
+      "required": ["index", "page_id", "type", "raw_code"],
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "动作序号，从 0 开始，全局递增。"
+        },
+        "page_id": {
+          "type": "string",
+          "description": "动作发生时所在的页面 ID。"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["goto", "click", "fill", "select", "check", "press", "assert", "popup", "wait"],
+          "description": "动作类型：goto=页面跳转，click=点击，fill=输入文本，select=下拉选择，check=勾选，press=键盘按键，assert=断言，popup=弹窗处理，wait=等待。"
+        },
+        "element_id": {
+          "type": ["string", "null"],
+          "description": "目标元素 ID；goto/wait 等无目标元素的动作为空。",
+          "default": null
+        },
+        "value": {
+          "type": ["string", "null"],
+          "description": "动作内联值（如 fill 的输入文本、select 的选项文本、goto 的 URL）。若该值已上提为 param，则 param_ref 非空，value 可为空。",
+          "default": null
+        },
+        "param_ref": {
+          "type": ["string", "null"],
+          "description": "引用 params[].name。当动作值来自字面量上提时填写，此时 value 应留空（或与 example_value 等价但不作为运行时值）。便于数据驱动替换和 secret 脱敏。",
+          "default": null
+        },
+        "raw_code": {
+          "type": "string",
+          "description": "录制脚本的原始代码行，用于溯源和人工排查。"
+        }
+      }
+    },
+    "param": {
+      "type": "object",
+      "description": "上提参数：从动作值中抽取的命名参数，支持数据驱动和密钥管理。",
+      "required": ["name", "example_value", "source_action_index", "secret"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "参数名，如 username、password、product_id。在 matrix.params 和 data_rows 中用此名引用。"
+        },
+        "example_value": {
+          "type": "string",
+          "description": "录制时的示例值（非 secret 时保留明文；secret 时填占位符或脱敏值，不保存真实值）。"
+        },
+        "source_action_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "该参数来自哪个动作（对应 actions[].index），便于溯源。"
+        },
+        "secret": {
+          "type": "boolean",
+          "description": "是否为凭据类参数。true 时禁止写入日志、报告、trace，运行时从密钥管理服务读取。",
+          "default": false
+        }
+      }
+    }
+  }
+}

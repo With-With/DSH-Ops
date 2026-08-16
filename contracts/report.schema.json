@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-ops.local/contracts/report.schema.json",
+  "title": "DSH-Ops Agent Report Schema",
+  "description": "A4/A5 Agent 生成/自修复 pytest 脚本后的会话报告。记录产物路径、测试结果、修复轮次、token 使用等信息。Django 侧校验并入库，用于质量统计和效果评估。",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "scenario_row_id",
+    "status",
+    "code_artifacts",
+    "test_run",
+    "fix_rounds",
+    "self_heal_events",
+    "model_usage",
+    "workspace_dir"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0-dev",
+      "description": "契约版本号。"
+    },
+    "scenario_row_id": {
+      "type": "string",
+      "description": "关联的场景矩阵行 ID（matrix.rows[].id），用于溯源。"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["generated", "fixed", "failed"],
+      "description": "最终状态：generated=首次生成成功（无需修复），fixed=经过自修复后通过，failed=生成或修复失败。"
+    },
+    "code_artifacts": {
+      "type": "array",
+      "description": "生成的代码产物文件路径列表，相对 workspace_dir。如 tests/test_login_success.py、conftest.py 等。",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "test_run": {
+      "type": "object",
+      "description": "最近一次 pytest 执行结果统计。",
+      "required": ["passed", "failed", "skipped", "duration_ms"],
+      "additionalProperties": false,
+      "properties": {
+        "passed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "通过的测试数。"
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "失败的测试数。"
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "跳过的测试数。"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "执行耗时，单位毫秒。"
+        }
+      }
+    },
+    "fix_rounds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "自修复轮次。0 表示一次生成通过，无需修复。"
+    },
+    "self_heal_events": {
+      "type": "array",
+      "description": "自修复事件列表，按轮次排列。每轮记录失败原因和采取的修复动作。",
+      "items": { "$ref": "#/$defs/heal_event" }
+    },
+    "model_usage": {
+      "type": "object",
+      "description": "模型 token 使用统计（所有轮次累计）。",
+      "required": ["model", "prompt_tokens", "completion_tokens"],
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "使用的模型名称。"
+        },
+        "prompt_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "累计输入 token 数。"
+        },
+        "completion_tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "累计输出 token 数。"
+        }
+      }
+    },
+    "workspace_dir": {
+      "type": "string",
+      "description": "本次会话的工作目录路径（绝对路径）。代码产物均相对此目录。"
+    },
+    "allure_results_dir": {
+      "type": ["string", "null"],
+      "description": "Allure 报告结果目录路径（相对 workspace_dir 或绝对路径）。未生成 Allure 结果时为空。",
+      "default": null
+    }
+  },
+  "$defs": {
+    "heal_event": {
+      "type": "object",
+      "description": "单次自修复事件：记录一轮修复中的失败原因和修复动作。",
+      "required": ["round", "failure_summary", "action_taken"],
+      "additionalProperties": false,
+      "properties": {
+        "round": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "修复轮次，从 1 开始。"
+        },
+        "failure_summary": {
+          "type": "string",
+          "description": "失败原因摘要，中文一句话，如「定位器失效，元素 #username 未找到」。"
+        },
+        "action_taken": {
+          "type": "string",
+          "description": "采取的修复动作描述，中文一句话，如「降级使用 xpath 定位器并重试」。"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+# ── Python / Django ──────────────────────────────
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.sqlite3
+.env
+.env.local
+staticfiles/
+
+# ── DSH 平台私有实例（凭据/会话，绝不入库）─────────
+agent/runtime/node_modules/
+agent/home/
+agent/workspaces/
+
+# ── 本地 Skill 文档（团队约定：保留本地，不公开）──
+docs/skills-local/
+
+# ── Node / 前端 ─────────────────────────────────
+node_modules/
+web/dist/
+dist/
+
+# ── IDE / OS ────────────────────────────────────
+.idea/
+.vscode/
+.DS_Store
+Things
+Thumbs.db
+
+# ── 测试产物 / 日志 ──────────────────────────────
+htmlcov/
+.coverage
+.pytest_cache/
+allure-results/
+allure-report/
+*.log

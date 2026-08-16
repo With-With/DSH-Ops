@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-ops.local/contracts/matrix.schema.json",
+  "title": "DSH-Ops Scenario Matrix Schema",
+  "description": "A2 Agent 基于 POM 生成的场景矩阵（测试用例设计产物）。每行代表一个测试场景或一组数据驱动用例。Django 侧校验并入库，供 A4/A5 消费生成脚本。",
+  "type": "object",
+  "required": ["schema_version", "pom_ref", "module", "rows"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0-dev",
+      "description": "契约版本号，用于双端兼容性检查。"
+    },
+    "pom_ref": {
+      "type": "string",
+      "description": "关联的 POM 标识，通常为 POM 记录 ID 或文件名，用于溯源到 pom.schema 产物的关联。"
+    },
+    "module": {
+      "type": "string",
+      "description": "所属业务模块名，如「登录」「商品管理」「用户中心」。"
+    },
+    "rows": {
+      "type": "array",
+      "description": "场景行列表，每行对应一个测试场景或一组数据驱动用例。",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/row" }
+    },
+    "token_usage": {
+      "type": ["object", "null"],
+      "description": "本次生成矩阵消耗的 token 使用情况，可选。",
+      "default": null,
+      "properties": {
+        "model": { "type": "string", "description": "使用的模型名。" },
+        "prompt_tokens": { "type": "integer", "minimum": 0, "description": "输入 token 数。" },
+        "completion_tokens": { "type": "integer", "minimum": 0, "description": "输出 token 数。" }
+      },
+      "additionalProperties": false,
+      "required": ["model", "prompt_tokens", "completion_tokens"]
+    }
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "description": "场景矩阵行：一个测试场景或一组数据驱动用例。",
+      "required": [
+        "id",
+        "name",
+        "method_tags",
+        "classification",
+        "flow",
+        "params",
+        "oracle",
+        "priority",
+        "needs_mock"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "行唯一标识，如 row_0、row_1。"
+        },
+        "name": {
+          "type": "string",
+          "description": "场景名称，中文一句话描述，如「正确账号+错误密码」「空用户名提交」。"
+        },
+        "method_tags": {
+          "type": "array",
+          "description": "用例设计方法标签，便于筛选和覆盖率统计。",
+          "items": {
+            "type": "string",
+            "enum": ["equivalence", "boundary", "scenario", "error_guess", "security"]
+          }
+        },
+        "classification": {
+          "type": "string",
+          "enum": ["data_driven", "separate_flow"],
+          "description": "分类：data_driven=同一流程不同数据（折叠为 1 个脚本 + N 行数据，节省 token 和代码复用；separate_flow=每个场景独立流程独立脚本。"
+        },
+        "flow": {
+          "oneOf": [
+            {
+              "type": "array",
+              "description": "动作引用序列：pom action index 数组，按执行顺序排列。",
+              "items": { "type": "integer", "minimum": 0 }
+            },
+            {
+              "type": "string",
+              "description": "文字描述形式的流程（当无法精确映射到 action index 时使用，如跨页面复杂交互）。"
+            }
+          ],
+          "description": "测试流程定义：可为 POM action index 数组（推荐）或文字描述。"
+        },
+        "params": {
+          "type": "object",
+          "description": "参数名到值的映射。secret 参数的值必须使用 ${secret:参数名} 占位符，不得出现明文。",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "propertyNames": {
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+          }
+        },
+        "data_source_ref": {
+          "type": ["object", "null"],
+          "description": "数据来源引用：当数据行来自外部数据源（如 SQL 查询）时填写。",
+          "default": null,
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "sql",
+              "description": "数据源类型，目前支持 sql。"
+            },
+            "snippet_id": {
+              "type": "string",
+              "description": "SQL 片段 ID，关联 Django 侧保存的查询语句。"
+            }
+          },
+          "required": ["type", "snippet_id"],
+          "additionalProperties": false
+        },
+        "data_rows": {
+          "type": "array",
+          "description": "data_driven 类型的数据行数组。每行是一个参数名到值的映射。secret 参数同样使用 ${secret:参数名} 占位符。",
+          "items": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "default": []
+        },
+        "oracle": {
+          "type": "object",
+          "description": "预期结果（Oracle）：定义测试通过的判定标准。",
+          "required": ["expectation"],
+          "additionalProperties": false,
+          "properties": {
+            "expectation": {
+              "type": "string",
+              "description": "中文一句话描述预期结果，如「登录成功，跳转到首页」。"
+            },
+            "assertion_hints": {
+              "type": "array",
+              "description": "断言提示列表，给 A4 生成断言时参考，如 visible_text_contains:url跳转、url_contains、element_visible 等。",
+              "items": { "type": "string" },
+              "default": []
+            }
+          }
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["P0", "P1", "P2"],
+          "description": "用例优先级：P0=核心冒烟必过，P1=重要功能，P2=次要/边缘。"
+        },
+        "needs_mock": {
+          "type": "boolean",
+          "description": "是否需要 Mock 配合。true 时 mock_ref 应非空。",
+          "default": false
+        },
+        "mock_ref": {
+          "type": ["string", "null"],
+          "description": "关联的 Mock 规则集 ID 或名称，对应 mock.schema 中的规则组。",
+          "default": null
+        }
+      }
+    }
+  }
+}
