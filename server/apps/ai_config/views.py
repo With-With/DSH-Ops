@@ -15,6 +15,22 @@ from .models import AIProviderConfig
 from .serializers import AIProviderConfigSerializer
 
 
+def _http_error_hint(code: int) -> str:
+    """把 HTTP 状态码映射为可读的中文诊断（P4 体验优化）。"""
+    hints = {
+        400: "请求参数被拒绝（HTTP 400）：检查 model_name / 请求格式",
+        401: "API Key 无效或无权限（HTTP 401）：检查密钥是否正确/未过期",
+        403: "无权限访问（HTTP 403）：检查密钥权限或账号状态",
+        404: "接口路径不对（HTTP 404）：确认 base_url 是否含 /v1 且指向 /chat/completions",
+        429: "请求过于频繁被限流（HTTP 429）：稍后重试",
+    }
+    if code in hints:
+        return hints[code]
+    if 500 <= code < 600:
+        return f"服务端错误（HTTP {code}）：检查 base_url 或稍后重试"
+    return f"请求被拒绝（HTTP {code}）"
+
+
 class AIProviderConfigViewSet(viewsets.ModelViewSet):
     """AI 模型配置：密钥加密落库，只回掩码。"""
 
@@ -66,7 +82,12 @@ class AIProviderConfigViewSet(viewsets.ModelViewSet):
             latency = int((time.time() - start) * 1000)
             result = {
                 "ok": False, "status_code": e.code, "latency_ms": latency,
-                "error": f"HTTP {e.code}: {e.reason}",
+                "error": _http_error_hint(e.code),
+            }
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            result = {
+                "ok": False,
+                "error": "网络不可达或超时：请检查 base_url 是否可访问、是否需要代理",
             }
         except Exception as e:
             result = {"ok": False, "error": f"{type(e).__name__}: {e}"}

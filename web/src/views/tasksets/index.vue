@@ -4,7 +4,18 @@
       <template #header>
         <div class="card-header">
           <span class="card-title">任务集</span>
-          <el-button type="primary" :icon="Plus" @click="openCreateDialog">新建任务集</el-button>
+          <div class="header-actions">
+            <el-button
+              type="danger"
+              plain
+              :icon="Delete"
+              :disabled="selectedRows.length === 0"
+              @click="handleBulkDelete"
+            >
+              删除选中({{ selectedRows.length }})
+            </el-button>
+            <el-button type="primary" :icon="Plus" @click="openCreateDialog">新建任务集</el-button>
+          </div>
         </div>
       </template>
 
@@ -13,6 +24,7 @@
         :data="tasksetList"
         stripe
         style="width: 100%"
+        @selection-change="handleSelectionChange"
       >
         <template #empty>
           <el-empty description="暂无任务集，点击【新建任务集】创建第一个">
@@ -20,6 +32,7 @@
           </el-empty>
         </template>
 
+        <el-table-column type="selection" width="42" />
         <el-table-column prop="name" label="名称" min-width="180" show-overflow-tooltip />
         <el-table-column label="录制 ID" width="120" align="center">
           <template #default="{ row }">
@@ -27,14 +40,23 @@
             <span v-else class="empty-tip">—</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="150" align="center">
+        <el-table-column prop="status" label="状态" width="170" align="center">
           <template #default="{ row }">
             <div class="status-cell">
               <el-tag :type="statusTagType(row.status)" effect="light">
                 {{ statusText(row.status) }}
               </el-tag>
               <el-tag
-                v-if="row.in_progress"
+                v-if="row.cancel_requested"
+                type="warning"
+                effect="dark"
+                size="small"
+                class="in-progress-badge"
+              >
+                已请求终止
+              </el-tag>
+              <el-tag
+                v-else-if="row.in_progress"
                 type="primary"
                 effect="dark"
                 size="small"
@@ -66,7 +88,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="100" fixed="right" align="center">
+        <el-table-column label="操作" width="160" fixed="right" align="center">
           <template #default="{ row }">
             <el-button
               type="primary"
@@ -76,6 +98,15 @@
               @click="handleViewDetail(row)"
             >
               详情
+            </el-button>
+            <el-button
+              type="danger"
+              link
+              size="small"
+              :icon="Delete"
+              @click="handleDelete(row)"
+            >
+              删除
             </el-button>
           </template>
         </el-table-column>
@@ -142,9 +173,29 @@
         <el-descriptions :column="1" border size="small">
           <el-descriptions-item label="名称">{{ currentDetail.name }}</el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="statusTagType(currentDetail.status)" effect="light">
-              {{ statusText(currentDetail.status) }}
-            </el-tag>
+            <div class="detail-status">
+              <el-tag :type="statusTagType(currentDetail.status)" effect="light">
+                {{ statusText(currentDetail.status) }}
+              </el-tag>
+              <el-tag
+                v-if="currentDetail.cancel_requested"
+                type="warning"
+                effect="dark"
+                size="small"
+                class="in-progress-badge"
+              >
+                已请求终止
+              </el-tag>
+              <el-tag
+                v-else-if="currentDetail.in_progress"
+                type="primary"
+                effect="dark"
+                size="small"
+                class="in-progress-badge"
+              >
+                <span class="pulse-dot"></span>进行中{{ currentDetail.current_stage ? '·' + currentDetail.current_stage : '' }}
+              </el-tag>
+            </div>
           </el-descriptions-item>
           <el-descriptions-item label="当前阶段">{{ currentDetail.current_stage || '—' }}</el-descriptions-item>
           <el-descriptions-item label="correlation_uuid">{{ currentDetail.correlation_uuid || '—' }}</el-descriptions-item>
@@ -440,7 +491,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, View, MagicStick, Share, CircleCheck, CircleClose, CaretRight, Document } from '@element-plus/icons-vue'
+import { Plus, View, MagicStick, Share, CircleCheck, CircleClose, CaretRight, Document, Delete } from '@element-plus/icons-vue'
 import {
   getTasksetList,
   createTaskset,
@@ -448,6 +499,8 @@ import {
   runStage,
   runPipeline,
   cancelTaskset,
+  deleteTaskset,
+  bulkDeleteTasksets,
 } from '@/api/tasksets'
 import { getRecordingList } from '@/api/recording'
 import { formatTime, formatDuration } from '@/utils/format'
@@ -456,6 +509,7 @@ import { createPoller } from '@/utils/polling'
 // ---- state ----
 const loading = ref(false)
 const tasksetList = ref([])
+const selectedRows = ref([])
 
 const createDialogVisible = ref(false)
 const creating = ref(false)
@@ -628,9 +682,9 @@ async function handleCancelPipeline() {
     )
     await cancelTaskset(currentDetail.value.id)
     ElMessage.info('已请求终止，将在当前阶段结束后停止')
-    // 重新拉详情（cancel_requested 置位）
-    const detail = await getTasksetDetail(currentDetail.value.id)
-    currentDetail.value = detail
+    // 立即本地置位，同步刷新列表
+    currentDetail.value.cancel_requested = true
+    fetchList()
   } catch (e) { /* 取消或 409 */ }
 }
 
@@ -674,6 +728,39 @@ const reviewJob = computed(() => {
 })
 
 // ---- actions ----
+function handleSelectionChange(rows) {
+  selectedRows.value = rows
+}
+
+async function handleDelete(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除任务集「${row.name}」吗？此操作不可恢复。`,
+      '删除任务集',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+    )
+    await deleteTaskset(row.id)
+    ElMessage.success('删除成功')
+    fetchList()
+  } catch (e) { /* 取消或失败 */ }
+}
+
+async function handleBulkDelete() {
+  if (selectedRows.value.length === 0) return
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedRows.value.length} 个任务集吗？此操作不可恢复。`,
+      '批量删除任务集',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+    )
+    const ids = selectedRows.value.map((r) => r.id)
+    const res = await bulkDeleteTasksets(ids)
+    ElMessage.success(`已删除 ${res?.deleted ?? ids.length} 个任务集`)
+    selectedRows.value = []
+    fetchList()
+  } catch (e) { /* 取消或失败 */ }
+}
+
 async function fetchList() {
   loading.value = true
   try {
@@ -881,6 +968,12 @@ onBeforeUnmount(() => {
   justify-content: space-between;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .card-title {
   font-size: 16px;
   font-weight: 600;
@@ -909,6 +1002,12 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+}
+
+.detail-status {
+  display: flex;
+  align-items: center;
   gap: 6px;
 }
 

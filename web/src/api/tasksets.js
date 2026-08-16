@@ -77,3 +77,29 @@ export function cancelTaskset(id) {
     timeout: 30000,
   })
 }
+
+/**
+ * 批量删除任务集（软删）
+ * POST /tasksets/bulk-delete/ { ids: [1,2] } -> 200 { deleted: n }
+ * 空 ids 返回 400
+ */
+export function bulkDeleteTasksets(ids) {
+  return request({
+    url: '/tasksets/bulk-delete/',
+    method: 'post',
+    data: { ids },
+    timeout: 30000,
+  })
+}
+
+/**
+ * 删除单条任务集（软删）
+ * DELETE /tasksets/<id>/ -> 200/204
+ */
+export function deleteTaskset(id) {
+  return request({
+    url: `/tasksets/${id}/`,
+    method: 'delete',
+    timeout: 30000,
+  })
+}

@@ -42,6 +42,16 @@ export function deleteRecording(id) {
   })
 }
 
+// 批量删除（逐条调用单条删除，返回成功数）
+export async function deleteRecordings(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return 0
+  const results = await Promise.allSettled(
+    ids.map((id) => deleteRecording(id))
+  )
+  const successCount = results.filter((r) => r.status === 'fulfilled').length
+  return successCount
+}
+
 // ---- P4：codegen 浏览器录制 ----
 
 // 开始录制（打开浏览器）

@@ -65,12 +65,12 @@ defineProps({
 const route = useRoute()
 
 const menuTree = [
-  { key: 'runtimes', path: '/runtimes', title: '运行时管理', icon: 'Cpu' },
+  { key: 'runtimes', path: '/runtimes', title: '配置中心', icon: 'Cpu' },
   { key: 'assets', path: '/assets', title: '元素仓', icon: 'Picture' },
   { key: 'tasksets', path: '/tasksets', title: '任务集', icon: 'Collection' },
   { key: 'reviews', path: '/reviews', title: '评审中心', icon: 'Message' },
   { key: 'ai-config', path: '/ai-config', title: 'AI 配置', icon: 'MagicStick' },
-  // P4：观测中心分组（概览 + 录制 + 回放）
+  // P4：观测中心分组（概览 + 录制 + 回放；回放中心已并入录制中心行内回放，#9）
   {
     key: 'obs-group',
     title: '观测中心',
@@ -78,7 +78,6 @@ const menuTree = [
     children: [
       { path: '/obs', title: '观测概览', icon: 'DataAnalysis' },
       { path: '/obs/recorder', title: '录制中心', icon: 'VideoCamera' },
-      { path: '/obs/replay', title: '回放中心', icon: 'VideoPlay' },
     ],
   },
 ]

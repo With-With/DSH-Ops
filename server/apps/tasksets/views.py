@@ -118,3 +118,25 @@ class TaskSetViewSet(viewsets.ReadOnlyModelViewSet):
             {"detail": "已请求终止，将在当前阶段结束后停止", "status": task_set.status},
             status=status.HTTP_202_ACCEPTED,
         )
+
+    @action(detail=False, methods=["post"], url_path="bulk-delete")
+    def bulk_delete(self, request):
+        """POST /api/tasksets/bulk-delete/ {ids: [1,2]} - 软删多条任务集（P4 #3）。"""
+        from apps.core.models import AuditLog
+
+        ids = (request.data or {}).get("ids") or []
+        if not isinstance(ids, list) or not ids:
+            return Response(
+                {"detail": "ids 必须是非空数组"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        qs = self.get_queryset().filter(pk__in=ids)
+        count = 0
+        for ts in qs:
+            ts.delete()  # 软删（BaseModel）
+            count += 1
+        AuditLog.objects.create(
+            action="taskset.bulk_delete",
+            detail=f"批量删除任务集 {count} 条（ids={ids}）",
+        )
+        return Response({"deleted": count})

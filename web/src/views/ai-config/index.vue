@@ -135,6 +135,10 @@
           <template #sub-title>
             <p v-if="testResult.ok">延迟 {{ testResult.latency_ms }}ms（HTTP {{ testResult.status_code }}）</p>
             <p v-else class="test-error">{{ testResult.error }}</p>
+            <p v-if="!testResult.ok" class="test-hint">
+              排查建议：1) 检查 API Key 是否正确/未过期；2) 确认 base_url 是否含 /v1；
+              3) 若为海外服务（如 OpenAI）需确认网络代理可达。
+            </p>
           </template>
         </el-result>
       </div>
@@ -360,5 +364,13 @@ onMounted(fetchList)
 .test-error {
   word-break: break-all;
   color: var(--do-danger);
+}
+
+.test-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--do-fg-tertiary);
+  text-align: left;
+  line-height: 1.7;
 }
 </style>

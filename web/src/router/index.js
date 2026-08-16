@@ -11,7 +11,7 @@ const routes = [
         path: 'runtimes',
         name: 'Runtimes',
         component: () => import('@/views/runtimes/index.vue'),
-        meta: { title: '运行时管理', icon: 'Cpu' },
+        meta: { title: '配置中心', icon: 'Cpu' },
       },
       {
         path: 'assets',

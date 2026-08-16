@@ -1,5 +1,11 @@
 <template>
   <div class="runtimes-page">
+    <!-- 页面标题 -->
+    <div class="page-title">
+      <el-icon :size="22"><Setting /></el-icon>
+      <span>配置中心</span>
+    </div>
+
     <!-- DSH 环境大卡片 -->
     <el-card shadow="hover" class="dsh-card">
       <template #header>
@@ -106,7 +112,7 @@
               size="small"
               effect="light"
             >
-              {{ comp.installed ? '已安装' : '未安装' }}
+              {{ comp.installed ? '已验证' : '未安装' }}
             </el-tag>
             <el-tag
               v-if="comp.op_status === 'running'"
@@ -190,7 +196,7 @@
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Search, RefreshRight, Refresh, Delete, Cpu, Grid, Download,
+  Search, RefreshRight, Refresh, Delete, Cpu, Grid, Download, Setting,
   Monitor, ChromeFilled, Link, Picture,
 } from '@element-plus/icons-vue'
 import {
@@ -385,6 +391,16 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow: auto;
   padding-right: 2px;
+}
+
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--do-fg);
+  padding: 2px 4px 4px;
 }
 
 .dsh-card, .components-card {

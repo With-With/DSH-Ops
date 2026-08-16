@@ -119,13 +119,20 @@ class RecordingViewSet(viewsets.GenericViewSet):
 
     @action(detail=False, methods=["post"], url_path="codegen/stop")
     def codegen_stop(self, request):
-        """POST /api/recordings/codegen/stop/ — 结束录制并保存（可自动 AI 分析）。"""
-        from .codegen import stop_session
+        """POST /api/recordings/codegen/stop/ — 结束录制并保存（可自动 AI 分析）。
 
-        session_id = (request.data or {}).get("session_id", "")
+        session_id 可不传：为空时取当前活跃会话（单会话语义）。
+        """
+        from .codegen import get_status, stop_session
+
+        session_id = (request.data or {}).get("session_id", "") or ""
+        if not session_id:
+            status_info = get_status()
+            session_id = status_info.get("session_id", "") if status_info.get("active") else ""
         if not session_id:
             return Response(
-                {"detail": "session_id 必填"}, status=status.HTTP_400_BAD_REQUEST
+                {"detail": "没有进行中的录制会话，无需结束"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             result = stop_session(

@@ -1,220 +1,308 @@
 <template>
   <div class="recorder-page">
-    <!-- P4：浏览器录制（playwright codegen） -->
-    <el-card shadow="never" class="codegen-card">
-      <template #header>
-        <div class="card-header">
-          <span class="card-title"><el-icon><VideoCamera /></el-icon> 浏览器录制</span>
-          <el-tag v-if="codegenActive" type="danger" effect="dark" size="small">
-            <span class="rec-dot"></span> 录制中
-          </el-tag>
-        </div>
-      </template>
-
-      <div class="codegen-body">
-        <el-form :inline="true" :model="codegenForm" @submit.prevent>
-          <el-form-item label="录制名称">
-            <el-input v-model="codegenForm.name" placeholder="留空自动命名" style="width: 200px" maxlength="120" />
-          </el-form-item>
-          <el-form-item label="起始 URL">
-            <el-input
-              v-model="codegenForm.start_url"
-              placeholder="http://127.0.0.1:8000/api/demo/login/"
-              style="width: 320px"
-            />
-          </el-form-item>
-          <el-form-item label="自动 AI 分析">
-            <el-switch v-model="codegenForm.auto_analyze" />
-            <el-text v-if="codegenForm.auto_analyze" type="success" size="small" class="auto-tip">
-              结束后自动重组为标准脚本
-            </el-text>
-          </el-form-item>
-          <el-form-item>
-            <el-button
-              v-if="!codegenActive"
-              type="primary"
-              :icon="VideoPlay"
-              :loading="codegenStarting"
-              @click="handleStartCodegen"
-            >
-              开始录制
-            </el-button>
-            <el-button
-              v-else
-              type="success"
-              :icon="VideoPause"
-              :loading="codegenStopping"
-              @click="handleStopCodegen"
-            >
-              结束并保存
-            </el-button>
-          </el-form-item>
-        </el-form>
-        <el-alert
-          v-if="codegenActive"
-          type="warning"
-          :closable="false"
-          show-icon
-          :title="`浏览器已打开（${codegenStartedAt}），请在浏览器中操作页面完成录制，然后点击【结束并保存】`"
-        />
-        <el-alert
-          v-else
-          type="info"
-          :closable="false"
-          show-icon
-          title="点击【开始录制】将打开 Playwright 录制器浏览器：页面操作会被自动录制为脚本，结束后保存到录制列表"
-        />
+    <!-- 顶部：模式切换 + 搜索刷新 -->
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <el-radio-group v-model="activeMode" size="default">
+          <el-radio-button value="browser" @change="switchMode">
+            <el-icon style="margin-right: 4px"><VideoCamera /></el-icon>浏览器录制
+          </el-radio-button>
+          <el-radio-button value="manual" @change="switchMode">
+            <el-icon style="margin-right: 4px"><Document /></el-icon>手动录制
+          </el-radio-button>
+        </el-radio-group>
       </div>
-    </el-card>
+      <div class="top-bar-right">
+        <el-input
+          v-model="searchKeyword"
+          placeholder="搜索名称 / 起始 URL"
+          clearable
+          style="width: 260px"
+          :prefix-icon="Search"
+        />
+        <el-button :icon="Refresh" @click="fetchList">刷新</el-button>
+      </div>
+    </div>
 
-    <!-- 手动导入（可选） -->
-    <el-collapse class="import-collapse">
-      <el-collapse-item title="手动导入脚本（可选：粘贴 / 上传已有脚本）" name="import">
-        <el-card shadow="never" class="form-card" style="border: none">
-          <el-form :model="form" label-width="80px" @submit.prevent>
-            <el-form-item label="脚本名称">
-              <el-input
-                v-model="form.name"
-                placeholder="请输入脚本名称，如：登录流程_v1"
-                maxlength="120"
-                show-word-limit
-              />
-            </el-form-item>
+    <!-- 三个可折叠区块 -->
+    <el-collapse v-model="activeSections" class="page-collapse">
+      <!-- 区块一：浏览器录制 -->
+      <el-collapse-item name="browser">
+        <template #title>
+          <span class="collapse-title">
+            <el-icon><VideoCamera /></el-icon>
+            浏览器录制
+            <el-tag v-if="codegenActive" type="danger" effect="dark" size="small" class="title-tag">
+              <span class="rec-dot"></span> 录制中
+            </el-tag>
+          </span>
+        </template>
 
-            <el-form-item label="脚本内容">
-              <div class="textarea-wrapper">
+        <el-card shadow="never" class="codegen-card">
+          <div class="codegen-body">
+            <el-form :inline="true" :model="codegenForm" @submit.prevent>
+              <el-form-item label="录制名称">
                 <el-input
-                  v-model="form.content"
-                  type="textarea"
-                  :rows="8"
-                  placeholder="粘贴录制生成的 Python 脚本，或上传 .py 文件..."
+                  v-model="codegenForm.name"
+                  placeholder="请输入录制名称"
+                  style="width: 220px"
+                  maxlength="120"
                 />
-                <div class="upload-row">
-                  <el-upload
-                    :show-file-list="false"
-                    :before-upload="handleBeforeUpload"
-                    accept=".py,.txt"
-                  >
-                    <el-button :icon="Upload">上传 .py 文件</el-button>
-                  </el-upload>
-                  <span class="upload-tip">支持 .py / .txt 文件，内容将填入上方文本框</span>
-                </div>
-              </div>
-            </el-form-item>
+              </el-form-item>
+              <el-form-item label="起始 URL">
+                <el-input
+                  v-model="codegenForm.start_url"
+                  placeholder="http://127.0.0.1:8000/api/demo/login/"
+                  style="width: 320px"
+                />
+              </el-form-item>
+              <el-form-item label="自动 AI 分析">
+                <el-switch v-model="codegenForm.auto_analyze" />
+                <el-text v-if="codegenForm.auto_analyze" type="success" size="small" class="auto-tip">
+                  结束后自动重组为标准脚本
+                </el-text>
+              </el-form-item>
+              <el-form-item>
+                <el-button
+                  v-if="!codegenActive"
+                  type="primary"
+                  :icon="VideoPlay"
+                  :loading="codegenStarting"
+                  :disabled="!codegenForm.name.trim()"
+                  @click="handleStartCodegen"
+                >
+                  开始录制
+                </el-button>
+                <el-button
+                  v-else
+                  type="success"
+                  :icon="VideoPause"
+                  :loading="codegenStopping"
+                  @click="handleStopCodegen"
+                >
+                  结束并保存
+                </el-button>
+              </el-form-item>
+            </el-form>
+            <el-alert
+              v-if="codegenActive"
+              type="warning"
+              :closable="false"
+              show-icon
+              :title="`浏览器已打开（${codegenStartedAt}），请在浏览器中操作页面完成录制，然后点击【结束并保存】`"
+            />
+            <el-alert
+              v-else
+              type="info"
+              :closable="false"
+              show-icon
+              title="点击【开始录制】将打开 Playwright 录制器浏览器：页面操作会被自动录制为脚本，结束后保存到录制列表"
+            />
+          </div>
+        </el-card>
+      </el-collapse-item>
 
-            <el-form-item>
+      <!-- 区块二：手动录制 -->
+      <el-collapse-item name="manual">
+        <template #title>
+          <span class="collapse-title">
+            <el-icon><Document /></el-icon>
+            手动录制脚本
+          </span>
+        </template>
+
+        <el-card shadow="never" class="manual-entry-card">
+          <div class="manual-entry">
+            <el-icon class="entry-icon"><Upload /></el-icon>
+            <div class="entry-text">
+              <div class="entry-title">通过粘贴或上传 Python 脚本创建录制</div>
+              <div class="entry-desc">支持粘贴 playwright 录制脚本内容，或上传 .py / .txt 文件，提交后自动解析</div>
+            </div>
+            <el-button type="primary" :icon="Promotion" @click="openManualDialog">
+              打开手动录制
+            </el-button>
+          </div>
+        </el-card>
+      </el-collapse-item>
+
+      <!-- 区块三：已解析脚本 -->
+      <el-collapse-item name="list">
+        <template #title>
+          <span class="collapse-title">
+            <el-icon><List /></el-icon>
+            已解析脚本
+            <el-tag size="small" effect="plain" class="title-tag">
+              {{ filteredList.length }} / {{ recordingList.length }}
+            </el-tag>
+          </span>
+        </template>
+
+        <el-card shadow="never" class="list-card">
+          <!-- 列表工具栏：批量删除 -->
+          <div class="list-toolbar">
+            <div class="toolbar-left">
               <el-button
-                type="primary"
-                :icon="Promotion"
-                :loading="submitting"
-                @click="handleSubmit"
+                type="danger"
+                :icon="Delete"
+                :disabled="selectedIds.length === 0"
+                @click="handleBatchDelete"
               >
-                {{ submitting ? '解析提交中...' : '提交解析' }}
+                删除选中 ({{ selectedIds.length }})
               </el-button>
-              <el-button :icon="RefreshLeft" @click="handleReset">重置</el-button>
-            </el-form-item>
-          </el-form>
+            </div>
+          </div>
+
+          <el-table
+            v-loading="loading"
+            :data="filteredList"
+            stripe
+            style="width: 100%"
+            @selection-change="handleSelectionChange"
+            ref="tableRef"
+          >
+            <template #empty>
+              <el-empty description="暂无录制脚本">
+                <el-button type="primary" :icon="Promotion" @click="activeMode = 'browser'; activeSections = ['browser', 'list']">
+                  开始录制
+                </el-button>
+              </el-empty>
+            </template>
+
+            <el-table-column type="selection" width="50" align="center" />
+            <el-table-column prop="name" label="名称" min-width="180" show-overflow-tooltip />
+            <el-table-column prop="language" label="语言" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.language" size="small" effect="plain">{{ row.language }}</el-tag>
+                <span v-else class="empty-tip">—</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="start_url" label="起始 URL" min-width="220" show-overflow-tooltip />
+            <el-table-column prop="locators_count" label="定位器数" width="100" align="center" />
+            <el-table-column prop="actions_count" label="动作数" width="90" align="center" />
+            <el-table-column label="警告数" width="90" align="center">
+              <template #default="{ row }">
+                <el-tag
+                  v-if="row.warnings && row.warnings.length > 0"
+                  size="small"
+                  type="warning"
+                  effect="light"
+                >
+                  {{ row.warnings.length }}
+                </el-tag>
+                <span v-else class="empty-tip">0</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="AI 重组" width="110" align="center">
+              <template #default="{ row }">
+                <el-tag
+                  :type="normalizeTagType(row.normalize_status)"
+                  size="small"
+                  effect="light"
+                >
+                  {{ normalizeText(row.normalize_status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="创建时间" width="180">
+              <template #default="{ row }">
+                <span v-if="row.created_at">{{ formatTime(row.created_at) }}</span>
+                <span v-else class="empty-tip">—</span>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="操作" width="300" fixed="right" align="center">
+              <template #default="{ row }">
+                <el-button
+                  type="success"
+                  link
+                  size="small"
+                  :icon="VideoPlay"
+                  @click="handleReplay(row)"
+                >
+                  回放
+                </el-button>
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  :icon="MagicStick"
+                  :loading="normalizeRunningId === row.id"
+                  :disabled="row.normalize_status === 'running' || normalizeRunningId === row.id"
+                  @click="handleNormalize(row)"
+                >
+                  AI 重组
+                </el-button>
+                <el-button
+                  type="primary"
+                  link
+                  size="small"
+                  :icon="View"
+                  @click="handleViewDetail(row)"
+                >
+                  详情
+                </el-button>
+                <el-button
+                  type="danger"
+                  link
+                  size="small"
+                  :icon="Delete"
+                  @click="handleDelete(row)"
+                >
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
         </el-card>
       </el-collapse-item>
     </el-collapse>
 
-    <!-- 下方：脚本列表 -->
-    <el-card shadow="never" class="list-card">
-      <template #header>
-        <div class="card-header">
-          <span class="card-title">已解析脚本</span>
-          <el-button :icon="Refresh" @click="fetchList">刷新</el-button>
-        </div>
+    <!-- 手动录制弹窗 -->
+    <el-dialog
+      v-model="manualDialogVisible"
+      title="手动录制"
+      width="680px"
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <el-form :model="manualForm" label-width="80px" @submit.prevent>
+        <el-form-item label="脚本名称" required>
+          <el-input
+            v-model="manualForm.name"
+            placeholder="请输入脚本名称，如：登录流程_v1"
+            maxlength="120"
+            show-word-limit
+          />
+        </el-form-item>
+
+        <el-form-item label="脚本内容" required>
+          <div class="textarea-wrapper">
+            <el-input
+              v-model="manualForm.content"
+              type="textarea"
+              :rows="12"
+              placeholder="粘贴录制生成的 Python 脚本，或上传 .py 文件..."
+            />
+            <div class="upload-row">
+              <el-upload
+                :show-file-list="false"
+                :before-upload="handleManualBeforeUpload"
+                accept=".py,.txt"
+              >
+                <el-button :icon="Upload">上传 .py 文件</el-button>
+              </el-upload>
+              <span class="upload-tip">支持 .py / .txt 文件，内容将填入上方文本框</span>
+            </div>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="manualDialogVisible = false">取消</el-button>
+        <el-button type="primary" :icon="Promotion" :loading="manualSubmitting" @click="handleManualSubmit">
+          {{ manualSubmitting ? '解析提交中...' : '提交解析' }}
+        </el-button>
       </template>
-
-      <el-table
-        v-loading="loading"
-        :data="recordingList"
-        stripe
-        style="width: 100%"
-      >
-        <template #empty>
-          <el-empty description="暂无录制脚本，在上方提交第一个脚本开始">
-            <el-button type="primary" :icon="Promotion" @click="scrollToForm">提交脚本</el-button>
-          </el-empty>
-        </template>
-
-        <el-table-column prop="name" label="名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="language" label="语言" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag v-if="row.language" size="small" effect="plain">{{ row.language }}</el-tag>
-            <span v-else class="empty-tip">—</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="start_url" label="起始 URL" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="locators_count" label="定位器数" width="100" align="center" />
-        <el-table-column prop="actions_count" label="动作数" width="90" align="center" />
-        <el-table-column label="警告数" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag
-              v-if="row.warnings && row.warnings.length > 0"
-              size="small"
-              type="warning"
-              effect="light"
-            >
-              {{ row.warnings.length }}
-            </el-tag>
-            <span v-else class="empty-tip">0</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="AI 重组" width="110" align="center">
-          <template #default="{ row }">
-            <el-tag
-              :type="normalizeTagType(row.normalize_status)"
-              size="small"
-              effect="light"
-            >
-              {{ normalizeText(row.normalize_status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180">
-          <template #default="{ row }">
-            <span v-if="row.created_at">{{ formatTime(row.created_at) }}</span>
-            <span v-else class="empty-tip">—</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作" width="230" fixed="right" align="center">
-          <template #default="{ row }">
-            <el-button
-              type="primary"
-              link
-              size="small"
-              :icon="MagicStick"
-              :loading="normalizeRunningId === row.id"
-              :disabled="row.normalize_status === 'running' || normalizeRunningId === row.id"
-              @click="handleNormalize(row)"
-            >
-              AI 重组
-            </el-button>
-            <el-button
-              type="primary"
-              link
-              size="small"
-              :icon="View"
-              @click="handleViewDetail(row)"
-            >
-              详情
-            </el-button>
-            <el-button
-              type="danger"
-              link
-              size="small"
-              :icon="Delete"
-              @click="handleDelete(row)"
-            >
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+    </el-dialog>
 
     <!-- 详情抽屉 -->
     <el-drawer
@@ -312,12 +400,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Upload,
   Promotion,
-  RefreshLeft,
   Refresh,
   View,
   Delete,
@@ -325,12 +412,16 @@ import {
   VideoPlay,
   VideoPause,
   MagicStick,
+  Document,
+  Search,
+  List,
 } from '@element-plus/icons-vue'
 import {
   getRecordingList,
   createRecording,
   getRecordingDetail,
   deleteRecording,
+  deleteRecordings,
   startCodegen,
   getCodegenStatus,
   stopCodegen,
@@ -340,13 +431,19 @@ import { formatTime } from '@/utils/format'
 
 // ---- state ----
 const loading = ref(false)
-const submitting = ref(false)
 const recordingList = ref([])
+const tableRef = ref(null)
 
-const form = reactive({
-  name: '',
-  content: '',
-})
+// 模式与折叠区块
+const activeMode = ref('browser')
+const activeSections = ref(['browser', 'list'])
+
+// 搜索
+const searchKeyword = ref('')
+
+// 批量选择
+const selectedIds = ref([])
+const selectedRows = ref([])
 
 // ---- P4：codegen 录制 ----
 const codegenForm = reactive({
@@ -364,6 +461,14 @@ let codegenPollTimer = null
 const normalizeRunningId = ref(null)
 let normalizePollTimer = null
 
+// ---- 手动录制弹窗 ----
+const manualDialogVisible = ref(false)
+const manualSubmitting = ref(false)
+const manualForm = reactive({
+  name: '',
+  content: '',
+})
+
 const detailDrawerVisible = ref(false)
 const currentDetail = ref(null)
 const detailLoading = ref(false)
@@ -372,6 +477,17 @@ const scriptTab = ref('raw')
 const deleteDialogVisible = ref(false)
 const deletingRow = ref(null)
 const deleting = ref(false)
+
+// ---- 计算 ----
+const filteredList = computed(() => {
+  const kw = searchKeyword.value.trim().toLowerCase()
+  if (!kw) return recordingList.value
+  return recordingList.value.filter((item) => {
+    const name = (item.name || '').toLowerCase()
+    const url = (item.start_url || '').toLowerCase()
+    return name.includes(kw) || url.includes(kw)
+  })
+})
 
 // ---- 工具 ----
 const NORMALIZE_MAP = {
@@ -383,6 +499,17 @@ const NORMALIZE_MAP = {
 
 function normalizeTagType(s) { return NORMALIZE_MAP[s]?.type || 'info' }
 function normalizeText(s) { return NORMALIZE_MAP[s]?.text || s || '未重组' }
+
+// ---- 模式切换 ----
+function switchMode(val) {
+  if (val === 'browser') {
+    // 展开浏览器录制 + 列表
+    activeSections.value = ['browser', 'list']
+  } else if (val === 'manual') {
+    // 展开手动录制入口 + 列表
+    activeSections.value = ['manual', 'list']
+  }
+}
 
 // ---- actions ----
 async function fetchList() {
@@ -397,6 +524,12 @@ async function fetchList() {
   }
 }
 
+// ---- 选择变化 ----
+function handleSelectionChange(rows) {
+  selectedRows.value = rows
+  selectedIds.value = rows.map((r) => r.id)
+}
+
 // ---- codegen ----
 async function pollCodegenStatus() {
   try {
@@ -409,10 +542,14 @@ async function pollCodegenStatus() {
 }
 
 async function handleStartCodegen() {
+  if (!codegenForm.name.trim()) {
+    ElMessage.warning('请先填写录制名称')
+    return
+  }
   codegenStarting.value = true
   try {
     await startCodegen({
-      name: codegenForm.name || '',
+      name: codegenForm.name.trim(),
       start_url: codegenForm.start_url || '',
     })
     codegenActive.value = true
@@ -492,14 +629,25 @@ async function handleNormalize(row) {
   }
 }
 
-function handleBeforeUpload(file) {
+// ---- 回放 ----
+function handleReplay(row) {
+  window.open(`/obs/replay?recording_id=${row.id}`, '_blank')
+}
+
+// ---- 手动录制弹窗 ----
+function openManualDialog() {
+  manualForm.name = ''
+  manualForm.content = ''
+  manualDialogVisible.value = true
+}
+
+function handleManualBeforeUpload(file) {
   const reader = new FileReader()
   reader.onload = (e) => {
-    form.content = e.target?.result || ''
-    if (!form.name) {
-      // 自动用文件名（去后缀）填充名称
+    manualForm.content = e.target?.result || ''
+    if (!manualForm.name) {
       const name = file.name.replace(/\.[^.]+$/, '')
-      form.name = name
+      manualForm.name = name
     }
     ElMessage.success(`已读取文件：${file.name}`)
   }
@@ -510,36 +658,26 @@ function handleBeforeUpload(file) {
   return false // 阻止自动上传
 }
 
-async function handleSubmit() {
-  if (!form.name.trim()) {
+async function handleManualSubmit() {
+  if (!manualForm.name.trim()) {
     ElMessage.warning('请输入脚本名称')
     return
   }
-  if (!form.content.trim()) {
+  if (!manualForm.content.trim()) {
     ElMessage.warning('请输入或上传脚本内容')
     return
   }
-  submitting.value = true
+  manualSubmitting.value = true
   try {
-    await createRecording({ name: form.name.trim(), content: form.content })
+    await createRecording({ name: manualForm.name.trim(), content: manualForm.content })
     ElMessage.success('脚本解析成功')
-    form.name = ''
-    form.content = ''
+    manualDialogVisible.value = false
     await fetchList()
   } catch (err) {
     // 拦截器已提示
   } finally {
-    submitting.value = false
+    manualSubmitting.value = false
   }
-}
-
-function handleReset() {
-  form.name = ''
-  form.content = ''
-}
-
-function scrollToForm() {
-  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 async function handleViewDetail(row) {
@@ -576,6 +714,46 @@ async function confirmDelete() {
   }
 }
 
+// ---- 批量删除 ----
+async function handleBatchDelete() {
+  if (selectedIds.value.length === 0) return
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedIds.value.length} 条脚本吗？删除后无法恢复。`,
+      '批量删除确认',
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+  } catch {
+    return
+  }
+
+  deleting.value = true
+  try {
+    const successCount = await deleteRecordings(selectedIds.value)
+    const total = selectedIds.value.length
+    if (successCount === total) {
+      ElMessage.success(`成功删除 ${successCount} 条脚本`)
+    } else {
+      ElMessage.warning(`删除完成：成功 ${successCount} 条，失败 ${total - successCount} 条`)
+    }
+    // 清空选择
+    if (tableRef.value && tableRef.value.clearSelection) {
+      tableRef.value.clearSelection()
+    }
+    selectedIds.value = []
+    selectedRows.value = []
+    fetchList()
+  } catch (err) {
+    ElMessage.error('批量删除失败')
+  } finally {
+    deleting.value = false
+  }
+}
+
 // ---- 生命周期 ----
 onMounted(() => {
   fetchList()
@@ -598,17 +776,61 @@ onBeforeUnmount(() => {
   padding-right: 4px;
 }
 
-.codegen-card {
-  border-radius: 8px;
+/* 顶部栏 */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
 }
 
-.card-title {
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 折叠区块 */
+.page-collapse {
+  border: none;
+  background: transparent;
+}
+
+.page-collapse :deep(.el-collapse-item__header) {
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--do-bg-soft, #fafafa);
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  height: 46px;
+  line-height: 46px;
+  color: var(--do-fg);
+}
+
+.page-collapse :deep(.el-collapse-item__wrap) {
+  border-bottom: none;
+  margin-bottom: 8px;
+}
+
+.page-collapse :deep(.el-collapse-item__content) {
+  padding-bottom: 8px;
+}
+
+.collapse-title {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--do-fg);
+}
+
+.title-tag {
+  margin-left: 8px;
 }
 
 .rec-dot {
@@ -626,6 +848,10 @@ onBeforeUnmount(() => {
   50% { opacity: 0.2; }
 }
 
+.codegen-card {
+  border-radius: 8px;
+}
+
 .codegen-body {
   padding: 4px 0;
 }
@@ -634,38 +860,61 @@ onBeforeUnmount(() => {
   margin-left: 8px;
 }
 
-.import-collapse {
-  border: none;
-  background: transparent;
+/* 手动录制入口卡片 */
+.manual-entry-card {
+  border-radius: 8px;
 }
 
-.norm-header {
+.manual-entry {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 16px;
+  padding: 8px 4px;
 }
 
-.norm-tip {
-  font-size: 12.5px;
+.entry-icon {
+  font-size: 32px;
+  color: var(--do-primary, #409eff);
+  flex-shrink: 0;
+}
+
+.entry-text {
+  flex: 1;
+}
+
+.entry-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--do-fg);
+  margin-bottom: 4px;
+}
+
+.entry-desc {
+  font-size: 13px;
   color: var(--do-fg-tertiary);
 }
 
-.form-card,
+/* 列表卡片 */
 .list-card {
   border-radius: 8px;
+}
+
+.list-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.toolbar-left {
+  display: flex;
+  gap: 8px;
 }
 
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.card-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--do-fg);
 }
 
 .textarea-wrapper {
@@ -727,6 +976,18 @@ onBeforeUnmount(() => {
   max-height: 400px;
   overflow: auto;
   color: var(--do-fg);
+}
+
+.norm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.norm-tip {
+  font-size: 12.5px;
+  color: var(--do-fg-tertiary);
 }
 
 .delete-dialog-body {
