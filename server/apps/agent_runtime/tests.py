@@ -180,7 +180,7 @@ class McpToolTests(TestCase):
         from apps.asset_repo.models import Element, PageObject
 
         self.page = PageObject.objects.create(
-            name="登录页", url_pattern="http://127.0.0.1:8000/api/demo/login/"
+            name="登录页", url_pattern="http://127.0.0.1:8001/api/demo/login/"
         )
         Element.objects.create(
             page=self.page, name="登录", role="button", candidates=[], source="recording"
@@ -190,7 +190,7 @@ class McpToolTests(TestCase):
         from apps.mcp.management.commands.run_mcp_server import _matching
 
         result = _matching().match_element(
-            page_url="http://127.0.0.1:8000/api/demo/login/",
+            page_url="http://127.0.0.1:8001/api/demo/login/",
             name="登录",
             role="button",
         )
@@ -200,6 +200,6 @@ class McpToolTests(TestCase):
         from apps.mcp.management.commands.run_mcp_server import _matching
 
         result = _matching().match_element(
-            page_url="http://127.0.0.1:8000/api/demo/login/", name="不存在的按钮"
+            page_url="http://127.0.0.1:8001/api/demo/login/", name="不存在的按钮"
         )
         self.assertEqual(result["confidence"], "none")

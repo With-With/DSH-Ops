@@ -29,7 +29,7 @@ def start_session(name: str = "", start_url: str = "") -> dict:
     """启动 codegen 会话，返回会话信息。"""
     session_id = str(uuid.uuid4())[:8]
     if not start_url:
-        start_url = "http://127.0.0.1:8000/api/demo/login/"
+        start_url = "http://127.0.0.1:8001/api/demo/login/"
 
     session_dir = _codegen_root() / session_id
     session_dir.mkdir(parents=True, exist_ok=True)

@@ -11,7 +11,7 @@ param([switch]$Real)
 $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $PSScriptRoot
 $py = "$root\venv\Scripts\python.exe"
-$base = "http://127.0.0.1:8000/api"
+$base = "http://127.0.0.1:8001/api"
 $fail = 0
 
 function Fail($msg) { Write-Host "  [FAIL] $msg" -ForegroundColor Red; $script:fail++ }
@@ -35,7 +35,7 @@ Write-Host "  [OK] tests" -ForegroundColor Green
 
 Write-Host "== 3. 启动 dev server (:8000, $(if ($Real) { "REAL" } else { "MOCK" }) 模式) =="
 $env:DSHOPS_AGENT_MODE = $(if ($Real) { "real" } else { "mock" })
-$server = Start-Process -FilePath $py -ArgumentList "manage.py","runserver","127.0.0.1:8000","--noreload" -WorkingDirectory "$root\server" -PassThru -WindowStyle Hidden
+$server = Start-Process -FilePath $py -ArgumentList "manage.py","runserver","127.0.0.1:8001","--noreload" -WorkingDirectory "$root\server" -PassThru -WindowStyle Hidden
 try {
     $ready = $false
     foreach ($i in 1..15) {
@@ -71,7 +71,7 @@ try {
         if (-not $pom.valid) { Fail "POM 草案校验未通过: $($pom.validation_errors -join '; ')" }
         if ($pom.content.elements.Count -lt 3) { Fail "POM 元素数不足" }
     }
-    $q = PostJson "$base/assets/elements/query/" @{ page_url = "http://127.0.0.1:8000/api/demo/login/"; name = "登录"; role = "button" } 15
+    $q = PostJson "$base/assets/elements/query/" @{ page_url = "http://127.0.0.1:8001/api/demo/login/"; name = "登录"; role = "button" } 15
     Write-Host ("  search-first 查【登录】按钮: confidence=$($q.confidence)")
     if ($q.confidence -ne "high") { Fail "A1 并入后登录按钮应 high 命中: $($q.confidence) reason=$($q.reason)" }
 

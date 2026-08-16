@@ -175,7 +175,7 @@ class TestParseRecordingGoldSample(unittest.TestCase):
         self.assertEqual(self.result["framework"], "playwright")
 
     def test_start_url(self):
-        self.assertIn("127.0.0.1:8000", self.result["start_url"])
+        self.assertIn("127.0.0.1:8001", self.result["start_url"])
         self.assertIn("/demo/login/", self.result["start_url"])
 
     def test_locators_count(self):

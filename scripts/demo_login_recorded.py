@@ -7,7 +7,7 @@ def run(playwright: Playwright) -> None:
     browser = playwright.chromium.launch(headless=False)
     context = browser.new_context(ignore_https_errors=True)
     page = context.new_page()
-    page.goto("http://127.0.0.1:8000/api/demo/login/")
+    page.goto("http://127.0.0.1:8001/api/demo/login/")
     page.get_by_role("textbox", name="请输入用户名").click()
     page.get_by_role("textbox", name="请输入用户名").fill("testadmin")
     page.get_by_role("textbox", name="请输入密码").fill("admin123456")

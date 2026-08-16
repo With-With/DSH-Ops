@@ -23,7 +23,7 @@ import os
 import pytest
 from playwright.sync_api import expect, sync_playwright
 
-LOGIN_URL = "http://127.0.0.1:8000/api/demo/login/"
+LOGIN_URL = "http://127.0.0.1:8001/api/demo/login/"
 HEADLESS = os.environ.get("HEADLESS", "1") == "1"
 
 

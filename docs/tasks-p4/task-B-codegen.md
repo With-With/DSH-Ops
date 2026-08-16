@@ -17,7 +17,7 @@
 
 ## 后端设计
 1. **codegen 会话** `apps/recorder/codegen.py`：
-   - `POST /recordings/codegen/start/` {name?, start_url?}（默认 http://127.0.0.1:8000/api/demo/login/）-> 202 {session_id}：起子进程 `python -m playwright codegen --target python --browser chromium -o server/artifacts/codegen/<session_id>/raw_script.py <start_url>`（DETACHED 记 PID，模块级会话表；目录随建）
+   - `POST /recordings/codegen/start/` {name?, start_url?}（默认 http://127.0.0.1:8001/api/demo/login/）-> 202 {session_id}：起子进程 `python -m playwright codegen --target python --browser chromium -o server/artifacts/codegen/<session_id>/raw_script.py <start_url>`（DETACHED 记 PID，模块级会话表；目录随建）
    - `GET /recordings/codegen/status/` -> {active, session_id, started_at, pid}
    - `POST /recordings/codegen/stop/` {session_id, auto_analyze?}：kill PID 树（taskkill /T /F）-> 轮询产物文件≤10s -> 空则返回提示不建 Recording；有则创建 Recording（raw_content=脚本，复用既有 parse）-> auto_analyze=true 时线程触发 AI 重组 -> 返回 {recording_id, actions_count}
    - 重复 start 409；stop 幂等

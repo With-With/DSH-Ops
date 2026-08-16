@@ -50,7 +50,7 @@
               <el-form-item label="起始 URL">
                 <el-input
                   v-model="codegenForm.start_url"
-                  placeholder="http://127.0.0.1:8000/api/demo/login/"
+                  placeholder="http://127.0.0.1:8001/api/demo/login/"
                   style="width: 320px"
                 />
               </el-form-item>
@@ -524,7 +524,7 @@ const selectedRows = ref([])
 // ---- P4：codegen 录制 ----
 const codegenForm = reactive({
   name: '',
-  start_url: 'http://127.0.0.1:8000/api/demo/login/',
+  start_url: 'http://127.0.0.1:8001/api/demo/login/',
   auto_analyze: true,
 })
 const codegenActive = ref(false)

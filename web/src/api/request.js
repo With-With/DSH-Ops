@@ -31,7 +31,12 @@ request.interceptors.response.use(
     const data = error?.response?.data
     let message = error?.message || '请求失败'
 
-    if (data?.detail) {
+    // HTML/非 JSON 响应（如 Django 404 页）不 dump 全文，给友好提示
+    const isHtml = typeof data === 'string' && /^\s*<!doctype html/i.test(data)
+
+    if (isHtml) {
+      message = '请求的资源不存在（路径错误或后端未部署该接口）'
+    } else if (data?.detail) {
       message = data.detail
     } else if (data?.message) {
       message = data.message

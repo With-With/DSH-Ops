@@ -332,7 +332,7 @@ def build_a4_instruction(matrix_draft: dict, pom_draft: dict) -> str:
         "- `elements.json`：元素仓摘要（搜索优先复用）\n\n"
         "步骤：\n"
         "1. 读三个输入文件，理解页面结构（目标页可能需先启动：\n"
-        "   若浏览器打不开 127.0.0.1:8000，先说明需先起后端服务）\n"
+        "   若浏览器打不开 127.0.0.1:8001，先说明需先起后端服务）\n"
         "2. 生成 pytest 脚本 `test_<模块名>.py`，用 playwright sync API +\n"
         "   `from playwright.sync_api import sync_playwright, expect`，\n"
         "   按 matrix 的 rows 组织用例，参数化数据用 @pytest.mark.parametrize；\n"

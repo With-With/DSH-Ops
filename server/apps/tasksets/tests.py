@@ -446,7 +446,7 @@ class PipelineTests(TestCase):
             'def run(playwright):\n'
             '    browser = playwright.chromium.launch(headless=False)\n'
             '    page = browser.new_page()\n'
-            '    page.goto("http://127.0.0.1:8000/api/demo/login/")\n'
+            '    page.goto("http://127.0.0.1:8001/api/demo/login/")\n'
             '    page.get_by_role("textbox", name="请输入用户名").click()\n'
             '    page.get_by_role("textbox", name="请输入用户名").fill("testadmin")\n'
             '    page.get_by_role("textbox", name="请输入密码").fill("admin123456")\n'
@@ -466,7 +466,7 @@ class PipelineTests(TestCase):
         # 让 extract/design/review/generate 全部走 mock
         gateway_payloads = [
             {"schema_version": "1.0.0-dev", "source": {"recording_id": "1", "trace_artifact_id": "t"},
-             "pages": [{"id": "p0", "name": "登录页", "url_pattern": "http://127.0.0.1:8000/api/demo/login/"}],
+             "pages": [{"id": "p0", "name": "登录页", "url_pattern": "http://127.0.0.1:8001/api/demo/login/"}],
              "elements": [{"id": "e0", "page_id": "p0", "name": "登录", "role": "button",
                            "candidates": [{"type": "role", "value": "button", "priority": 0, "robustness": "strong"}],
                            "exists_in_repo": False}],

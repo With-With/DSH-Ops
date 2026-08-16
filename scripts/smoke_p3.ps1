@@ -8,7 +8,7 @@ param([switch]$Real)
 $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $PSScriptRoot
 $py = "$root\venv\Scripts\python.exe"
-$base = "http://127.0.0.1:8000/api"
+$base = "http://127.0.0.1:8001/api"
 $fail = 0
 
 function Fail($msg) { Write-Host "  [FAIL] $msg" -ForegroundColor Red; $script:fail++ }
@@ -32,7 +32,7 @@ Write-Host "  [OK] tests" -ForegroundColor Green
 
 Write-Host "== 3. 启动 dev server (:8000, $(if ($Real) { "REAL" } else { "MOCK" }) 模式) =="
 $env:DSHOPS_AGENT_MODE = $(if ($Real) { "real" } else { "mock" })
-$server = Start-Process -FilePath $py -ArgumentList "manage.py","runserver","127.0.0.1:8000","--noreload" -WorkingDirectory "$root\server" -PassThru -WindowStyle Hidden
+$server = Start-Process -FilePath $py -ArgumentList "manage.py","runserver","127.0.0.1:8001","--noreload" -WorkingDirectory "$root\server" -PassThru -WindowStyle Hidden
 try {
     $ready = $false
     foreach ($i in 1..15) {

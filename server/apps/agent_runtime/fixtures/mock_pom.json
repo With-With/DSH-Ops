@@ -8,7 +8,7 @@
     {
       "id": "page_0",
       "name": "演示登录页",
-      "url_pattern": "http://127.0.0.1:8000/api/demo/login/",
+      "url_pattern": "http://127.0.0.1:8001/api/demo/login/",
       "matched_existing_page_id": null
     }
   ],
@@ -51,7 +51,7 @@
     }
   ],
   "actions": [
-    {"index": 0, "page_id": "page_0", "type": "goto", "element_id": null, "value": "http://127.0.0.1:8000/api/demo/login/", "param_ref": null, "raw_code": "page.goto(\"http://127.0.0.1:8000/api/demo/login/\")"},
+    {"index": 0, "page_id": "page_0", "type": "goto", "element_id": null, "value": "http://127.0.0.1:8001/api/demo/login/", "param_ref": null, "raw_code": "page.goto(\"http://127.0.0.1:8001/api/demo/login/\")"},
     {"index": 1, "page_id": "page_0", "type": "fill", "element_id": "elem_0", "value": "testadmin", "param_ref": "username", "raw_code": "page.get_by_role(\"textbox\", name=\"请输入用户名\").fill(\"testadmin\")"},
     {"index": 2, "page_id": "page_0", "type": "fill", "element_id": "elem_1", "value": null, "param_ref": "password", "raw_code": "page.get_by_role(\"textbox\", name=\"请输入密码\").fill(\"admin123456\")"},
     {"index": 3, "page_id": "page_0", "type": "click", "element_id": "elem_2", "value": null, "param_ref": null, "raw_code": "page.get_by_role(\"button\", name=\"登录\", exact=True).click()"},

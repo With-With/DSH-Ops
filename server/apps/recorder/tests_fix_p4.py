@@ -17,7 +17,7 @@ DEMO_SCRIPT = (
     'def run(playwright):\n'
     '    browser = playwright.chromium.launch(headless=False)\n'
     '    page = browser.new_page()\n'
-    '    page.goto("http://127.0.0.1:8000/api/demo/login/")\n'
+    '    page.goto("http://127.0.0.1:8001/api/demo/login/")\n'
     '    page.get_by_role("textbox", name="请输入用户名").click()\n'
     '    page.get_by_role("textbox", name="请输入用户名").fill("testadmin")\n'
     '    page.get_by_role("button", name="登录", exact=True).click()\n'
@@ -41,7 +41,7 @@ class CodegenParseOnSaveTests(TestCase):
             _sessions.clear()
             _sessions["s1"] = {
                 "session_id": "s1", "name": "codegen-demo",
-                "start_url": "http://127.0.0.1:8000/api/demo/login/",
+                "start_url": "http://127.0.0.1:8001/api/demo/login/",
                 "started_at": "2026-01-01T00:00:00",
                 "pid": 1, "output_file": str(tmp), "stopped": False,
             }
@@ -52,7 +52,7 @@ class CodegenParseOnSaveTests(TestCase):
             self.assertGreater(rec.actions_count, 0, "动作数应为解析结果")
             self.assertGreater(rec.locators_count, 0, "定位器数应为解析结果")
             self.assertEqual(
-                rec.start_url, "http://127.0.0.1:8000/api/demo/login/"
+                rec.start_url, "http://127.0.0.1:8001/api/demo/login/"
             )
             self.assertEqual(rec.language, "python")
         finally:

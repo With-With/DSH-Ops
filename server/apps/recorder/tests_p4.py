@@ -15,7 +15,7 @@ DEMO_SCRIPT = (
     'def run(playwright):\n'
     '    browser = playwright.chromium.launch(headless=False)\n'
     '    page = browser.new_page()\n'
-    '    page.goto("http://127.0.0.1:8000/api/demo/login/")\n'
+    '    page.goto("http://127.0.0.1:8001/api/demo/login/")\n'
     '    page.get_by_role("textbox", name="请输入用户名").click()\n'
     '    page.get_by_role("textbox", name="请输入用户名").fill("testadmin")\n'
     '    page.get_by_role("button", name="登录", exact=True).click()\n'

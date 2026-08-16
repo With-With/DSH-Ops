@@ -37,6 +37,6 @@
 ## 验收（全过后才算完成）
 1. `cd web; npm run build` 成功（0 error）
 2. `npm run dev` 起后 `Invoke-WebRequest http://localhost:5173/tasksets` 与 `/replay` 页面源 200（验完杀）
-3. 若后端可用（127.0.0.1:8000）则连真实 API 冒烟：GET /api/tasksets/ 看到 in_progress 字段；POST cancel 对终态返回 409；GET /api/replays/ 看到 video_available 字段；bulk-delete 空 ids 400
+3. 若后端可用（127.0.0.1:8001）则连真实 API 冒烟：GET /api/tasksets/ 看到 in_progress 字段；POST cancel 对终态返回 409；GET /api/replays/ 看到 video_available 字段；bulk-delete 空 ids 400
 
 完成后报告：文件清单、build 结果、冒烟结果、遗留。

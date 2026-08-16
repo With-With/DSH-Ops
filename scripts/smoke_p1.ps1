@@ -1,12 +1,12 @@
 ﻿# P1 集成冒烟：录制->解析->trace回放->元素先搜后建->任务集状态机 全链
 # 用法: powershell -ExecutionPolicy Bypass -File scripts\smoke_p1.ps1
-# 注意：演示录制脚本 goto 指向 127.0.0.1:8000，故本冒烟的服务器必须用 8000 端口
+# 注意：演示录制脚本 goto 指向 127.0.0.1:8001，故本冒烟的服务器必须用 8000 端口
 # 退出码 0 = 全部通过
 
 $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $PSScriptRoot
 $py = "$root\venv\Scripts\python.exe"
-$base = "http://127.0.0.1:8000/api"
+$base = "http://127.0.0.1:8001/api"
 $fail = 0
 
 function Fail($msg) { Write-Host "  [FAIL] $msg" -ForegroundColor Red; $script:fail++ }
@@ -23,7 +23,7 @@ if ($LASTEXITCODE -ne 0) { Fail "单元测试未全绿"; Pop-Location; exit 1 }
 Write-Host "  [OK] tests" -ForegroundColor Green
 
 Write-Host "== 3. 启动 dev server (:8000) =="
-$server = Start-Process -FilePath $py -ArgumentList "manage.py","runserver","127.0.0.1:8000","--noreload" -WorkingDirectory "$root\server" -PassThru -WindowStyle Hidden
+$server = Start-Process -FilePath $py -ArgumentList "manage.py","runserver","127.0.0.1:8001","--noreload" -WorkingDirectory "$root\server" -PassThru -WindowStyle Hidden
 try {
     $ready = $false
     foreach ($i in 1..15) {
@@ -32,7 +32,7 @@ try {
     if (-not $ready) { throw "server 未就绪" }
 
     Write-Host "== 4. 演示页可访问 =="
-    try { $demo = Invoke-WebRequest "http://127.0.0.1:8000/api/demo/login/" -TimeoutSec 10 -UseBasicParsing; if ($demo.StatusCode -eq 200 -and $demo.Content -match "请输入用户名") { Write-Host "  [OK] demo login page" -ForegroundColor Green } else { Fail "演示页内容异常" } } catch { Fail "演示页不可访问: $_" }
+    try { $demo = Invoke-WebRequest "http://127.0.0.1:8001/api/demo/login/" -TimeoutSec 10 -UseBasicParsing; if ($demo.StatusCode -eq 200 -and $demo.Content -match "请输入用户名") { Write-Host "  [OK] demo login page" -ForegroundColor Green } else { Fail "演示页内容异常" } } catch { Fail "演示页不可访问: $_" }
 
     Write-Host "== 5. 上传录制脚本并解析 =="
     $content = [System.IO.File]::ReadAllText("$root\scripts\demo_login_recorded.py", [System.Text.Encoding]::UTF8)
@@ -40,7 +40,7 @@ try {
     $rec = Invoke-RestMethod -Method Post -Uri "$base/recordings/" -ContentType "application/json; charset=utf-8" -Body $body -TimeoutSec 30
     Write-Host ("  id=$($rec.id) start_url=$($rec.start_url) locators=$($rec.locators_count) actions=$($rec.actions_count)")
     if (-not $rec.id) { Fail "录制创建失败"; exit 1 }
-    if ($rec.start_url -ne "http://127.0.0.1:8000/api/demo/login/") { Fail "start_url 解析不符: $($rec.start_url)" }
+    if ($rec.start_url -ne "http://127.0.0.1:8001/api/demo/login/") { Fail "start_url 解析不符: $($rec.start_url)" }
     if ($rec.actions_count -lt 5) { Fail "动作数不足: $($rec.actions_count)" }
 
     Write-Host "== 6. trace 回放（真实浏览器）=="
@@ -58,7 +58,7 @@ try {
     if ($size -lt 1024) { Fail "trace.zip 过小" }
 
     Write-Host "== 8. 元素仓 search-first：先搜 =="
-    $q1 = Invoke-RestMethod -Method Post -Uri "$base/assets/elements/query/" -ContentType "application/json" -Body (@{ page_url = "http://127.0.0.1:8000/api/demo/login/"; name = "请输入用户名"; role = "textbox" } | ConvertTo-Json) -TimeoutSec 15
+    $q1 = Invoke-RestMethod -Method Post -Uri "$base/assets/elements/query/" -ContentType "application/json" -Body (@{ page_url = "http://127.0.0.1:8001/api/demo/login/"; name = "请输入用户名"; role = "textbox" } | ConvertTo-Json) -TimeoutSec 15
     Write-Host ("  confidence=$($q1.confidence) reason=$($q1.reason)")
     # 幂等断言：首轮（元素仓空）应为 none；重复运行（元素已入库）应直接 high 命中
     if ($q1.confidence -eq "none") {
@@ -71,12 +71,12 @@ try {
 
     Write-Host "== 9. 建页面对象（先搜后建）+ 新建元素 =="
     $existing = Invoke-RestMethod "$base/assets/pages/" -TimeoutSec 15
-    $hit = @($existing.results | Where-Object { $_.url_pattern -eq "http://127.0.0.1:8000/api/demo/login/" })
+    $hit = @($existing.results | Where-Object { $_.url_pattern -eq "http://127.0.0.1:8001/api/demo/login/" })
     if ($hit.Count -gt 0) {
         $page = $hit[0]
         Write-Host "  复用已有页面 id=$($page.id)（search-first）"
     } else {
-        $page = Invoke-RestMethod -Method Post -Uri "$base/assets/pages/" -ContentType "application/json" -Body (@{ name = "演示登录页"; url_pattern = "http://127.0.0.1:8000/api/demo/login/" } | ConvertTo-Json) -TimeoutSec 15
+        $page = Invoke-RestMethod -Method Post -Uri "$base/assets/pages/" -ContentType "application/json" -Body (@{ name = "演示登录页"; url_pattern = "http://127.0.0.1:8001/api/demo/login/" } | ConvertTo-Json) -TimeoutSec 15
         Write-Host "  新建页面 id=$($page.id)"
     }
     $existed = Invoke-RestMethod "$base/assets/elements/?page_id=$($page.id)" -TimeoutSec 15
@@ -90,7 +90,7 @@ try {
     }
 
     Write-Host "== 10. 再搜（应 high 命中同一元素）=="
-    $q2 = Invoke-RestMethod -Method Post -Uri "$base/assets/elements/query/" -ContentType "application/json" -Body (@{ page_url = "http://127.0.0.1:8000/api/demo/login/"; name = "请输入用户名"; role = "textbox" } | ConvertTo-Json) -TimeoutSec 15
+    $q2 = Invoke-RestMethod -Method Post -Uri "$base/assets/elements/query/" -ContentType "application/json" -Body (@{ page_url = "http://127.0.0.1:8001/api/demo/login/"; name = "请输入用户名"; role = "textbox" } | ConvertTo-Json) -TimeoutSec 15
     Write-Host ("  confidence=$($q2.confidence) match_id=$($q2.match.id)")
     if ($q2.confidence -ne "high") { Fail "二次查询应为 high，实际 $($q2.confidence)" }
     if ($q2.match.id -ne $el.id) { Fail "命中元素 id 不符" }

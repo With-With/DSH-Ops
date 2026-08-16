@@ -40,7 +40,7 @@ powershell -ExecutionPolicy Bypass -File scripts\start_frontend.ps1
 - 行内 **【健康检查】** 会以平台 DSH_HOME 跑 `dsh --dump-default-config` 验证可用性；
 - **【删除】**：默认软删（数据库层面）；勾选"物理删除"才真正删目录，且写审计日志。
 
-Django admin：http://localhost:8000/api/admin/（首次自行 `manage.py createsuperuser`）。
+Django admin：http://localhost:8001/api/admin/（首次自行 `manage.py createsuperuser`）。
 
 ## 三、目录与环境变量速查
 
