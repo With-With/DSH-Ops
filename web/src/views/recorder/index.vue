@@ -362,7 +362,6 @@
           show-icon
           :closable="false"
         />
-        <p class="warning-tip">⚠️ 删除后无法恢复，请谨慎操作。</p>
       </div>
       <template #footer>
         <el-button @click="deleteDialogVisible = false">取消</el-button>
@@ -682,7 +681,7 @@ async function handleBatchDelete() {
   if (selectedIds.value.length === 0) return
   try {
     await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedIds.value.length} 条脚本吗？删除后无法恢复。`,
+      `确定要删除选中的 ${selectedIds.value.length} 条脚本吗？`,
       '批量删除确认',
       {
         confirmButtonText: '确认删除',

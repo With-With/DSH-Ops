@@ -134,9 +134,16 @@ class RuntimeViewSet(viewsets.GenericViewSet):
     # P4：组件管理（playwright / selenium / 浏览器 / chromium 通道）
     # ------------------------------------------------------------------
 
-    @action(detail=False, methods=["get"], url_path="components")
-    def components(self, request):
-        """GET /api/runtimes/components/ - 组件状态列表（P4 卡片页数据源）。"""
+    @action(detail=False, methods=["get", "post"], url_path="components/detect")
+    def components_detect(self, request):
+        """GET/POST /api/runtimes/components/detect/ - 显式触发组件重检测。
+
+        与 GET /components/ 返回结构一致（检测本身是实时的，此端点提供
+        "点检测刷新"语义，供前端按钮调用）。
+        """
+        return self._components_payload()
+
+    def _components_payload(self):
         from .components import detect_components, list_running_tasks
 
         tasks = list_running_tasks()
@@ -154,6 +161,11 @@ class RuntimeViewSet(viewsets.GenericViewSet):
                 item["op_detail"] = ""
             items.append(item)
         return Response({"results": items})
+
+    @action(detail=False, methods=["get"], url_path="components")
+    def components(self, request):
+        """GET /api/runtimes/components/ - 组件状态列表（P4 卡片页数据源）。"""
+        return self._components_payload()
 
     @action(detail=False, methods=["post"], url_path="components/install")
     def component_install(self, request):
