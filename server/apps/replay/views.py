@@ -3,6 +3,7 @@ import threading
 
 from django.db import connections
 from django.http import FileResponse, Http404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -18,10 +19,18 @@ class ReplayRunViewSet(viewsets.GenericViewSet):
     queryset = ReplayRun.objects.all()
     serializer_class = ReplayRunSerializer
     lookup_field = "pk"
+    filter_backends = [DjangoFilterBackend,]
+    filterset_fields = ["recording", "status", "task_set_id"]
 
     def list(self, request):
-        """GET /api/replays/ — 回放执行列表（分页）。"""
+        """GET /api/replays/?recording_id=&status= — 回放执行列表（分页）。
+
+        recording_id 过滤为前端"仅查看当前脚本回放"契约（录制中心回放弹窗）。
+        """
         queryset = self.filter_queryset(self.get_queryset())
+        recording_id = request.query_params.get("recording_id")
+        if recording_id:
+            queryset = queryset.filter(recording_id=recording_id)
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)

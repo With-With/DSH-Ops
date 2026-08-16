@@ -124,10 +124,30 @@ def stop_session(session_id: str, auto_analyze: bool = False) -> dict:
         }
 
     from apps.recorder.models import Recording
+    from apps.recorder.parser import parse_recording
+
+    # 落库前解析：填充语言/框架/起始URL/定位器数/动作数/警告（P4 #2 修复：
+    # 此前直接 create 导致统计字段全为 0）
+    try:
+        parse_result = parse_recording(raw_content)
+    except Exception:
+        parse_result = {
+            "language": "python", "framework": "playwright", "start_url": "",
+            "locators_count": 0, "actions_count": 0,
+            "normalized_content": "", "warnings": ["脚本解析失败"],
+            "actions": [],
+        }
 
     recording = Recording.objects.create(
         name=session.get("name") or f"codegen-{session_id}",
         raw_content=raw_content,
+        language=parse_result["language"],
+        framework=parse_result["framework"],
+        start_url=parse_result["start_url"],
+        normalized_content=parse_result["normalized_content"],
+        locators_count=parse_result["locators_count"],
+        actions_count=parse_result["actions_count"],
+        warnings=parse_result["warnings"],
     )
 
     result = {
