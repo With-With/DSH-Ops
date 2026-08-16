@@ -36,6 +36,13 @@ class ReplayRun(BaseModel):
     error = models.TextField("错误信息", blank=True, default="")
     trace_path = models.CharField("Trace 文件路径", max_length=512, blank=True, default="")
     trace_hash = models.CharField("Trace 文件哈希", max_length=128, blank=True, default="")
+    video_path = models.CharField(
+        "回放视频路径",
+        max_length=512,
+        blank=True,
+        default="",
+        help_text="P4：Playwright 录像（webm），页面级查看用",
+    )
 
     class Meta:
         verbose_name = "回放执行"

@@ -5,6 +5,17 @@
  * ============================================================ */
 
 :root {
+  /* ---------- 字号（P4：整体加大一号，14 -> 16 基准） ---------- */
+  --do-font-size-base: 16px;
+  --do-font-size-small: 14px;
+  --do-font-size-lg: 18px;
+  /* Element Plus 字号整体升一档 */
+  --el-font-size-base: 16px;
+  --el-font-size-small: 14px;
+  --el-font-size-extra-small: 13px;
+  --el-font-size-medium: 16px;
+  --el-font-size-large: 17px;
+
   /* ---------- 基础色 ---------- */
   --do-bg: #f5f7fa;
   --do-bg-page: #ffffff;
@@ -70,4 +81,13 @@ html.dark {
 
   --do-shadow-light: 0 2px 12px 0 rgba(0, 0, 0, 0.3);
   --do-shadow-base: 0 2px 12px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* ---------- 全局基准字号（加大一号） ---------- */
+html {
+  font-size: 16px;
+}
+
+body {
+  font-size: var(--do-font-size-base);
 }

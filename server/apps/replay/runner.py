@@ -164,13 +164,22 @@ def run_replay(recording, task_set_id: Optional[int] = None,
                 launch_kwargs["channel"] = browser_channel
 
             browser = p.chromium.launch(**launch_kwargs)
-            context = browser.new_context(ignore_https_errors=True)
+            # P4：回放录像（webm，页面级查看）+ tracing 同时开启
+            video_dir = trace_dir / "video"
+            video_dir.mkdir(parents=True, exist_ok=True)
+            context = browser.new_context(
+                ignore_https_errors=True,
+                record_video_dir=str(video_dir),
+                record_video_size={"width": 1280, "height": 720},
+                viewport={"width": 1280, "height": 720},
+            )
 
             # 开 tracing
             context.tracing.start(snapshots=True, screenshots=True, sources=True)
 
             pages = [context.new_page()]
             runtime_warnings: List[str] = []
+            _video_path = ""
 
             try:
                 for i, action in enumerate(actions):
@@ -223,7 +232,11 @@ def run_replay(recording, task_set_id: Optional[int] = None,
                     steps_passed += 1
 
             finally:
-                # 停止 tracing 并保存
+                # 停止 tracing 并保存；video 在 page/context close 后落盘
+                try:
+                    _video_path = str(pages[0].video.path()) if pages[0].video else ""
+                except Exception:
+                    _video_path = ""
                 context.tracing.stop(path=trace_path)
                 context.close()
                 browser.close()
@@ -261,6 +274,7 @@ def run_replay(recording, task_set_id: Optional[int] = None,
         replay_run.error = error_msg
         replay_run.trace_path = final_trace_path
         replay_run.trace_hash = trace_hash
+        replay_run.video_path = _video_path if _video_path and os.path.exists(_video_path) else ""
         replay_run.save()
 
     return replay_run

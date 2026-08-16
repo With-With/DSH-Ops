@@ -9,6 +9,8 @@ class ReplayRunSerializer(serializers.ModelSerializer):
     trace_available = serializers.SerializerMethodField()
     trace_url = serializers.SerializerMethodField()
     recording_name = serializers.CharField(source="recording.name", read_only=True)
+    video_available = serializers.SerializerMethodField()
+    video_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ReplayRun
@@ -26,6 +28,8 @@ class ReplayRunSerializer(serializers.ModelSerializer):
             "trace_hash",
             "trace_available",
             "trace_url",
+            "video_available",
+            "video_url",
             "created_at",
             "updated_at",
         ]
@@ -40,6 +44,8 @@ class ReplayRunSerializer(serializers.ModelSerializer):
             "trace_hash",
             "trace_available",
             "trace_url",
+            "video_available",
+            "video_url",
             "recording_name",
             "created_at",
             "updated_at",
@@ -56,6 +62,18 @@ class ReplayRunSerializer(serializers.ModelSerializer):
         if request is None:
             return f"/api/replays/{obj.pk}/trace/download/"
         return request.build_absolute_uri(f"/api/replays/{obj.pk}/trace/download/")
+
+    def get_video_available(self, obj):
+        import os
+        return bool(obj.video_path and os.path.exists(obj.video_path))
+
+    def get_video_url(self, obj):
+        if not obj.video_path:
+            return ""
+        request = self.context.get("request")
+        if request is None:
+            return f"/api/replays/{obj.pk}/video/"
+        return request.build_absolute_uri(f"/api/replays/{obj.pk}/video/")
 
 
 class ReplayCreateSerializer(serializers.Serializer):

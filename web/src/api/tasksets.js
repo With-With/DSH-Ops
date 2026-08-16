@@ -64,3 +64,16 @@ export function runPipeline(id) {
     timeout: 30000,
   })
 }
+
+/**
+ * 请求终止流水线/阶段（P4，协作式：当前阶段结束后停止）
+ * POST /tasksets/<id>/cancel/ -> 202 { detail, status }；终态 409
+ */
+export function cancelTaskset(id) {
+  return request({
+    url: `/tasksets/${id}/cancel/`,
+    method: 'post',
+    data: {},
+    timeout: 30000,
+  })
+}

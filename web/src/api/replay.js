@@ -55,3 +55,16 @@ export function startReplayAsync(recordingId) {
 export function getReplayTraceUrl(id) {
   return `/api/replays/${id}/trace/download/`
 }
+
+/**
+ * 批量删除回放记录（软删）
+ * POST /replays/bulk-delete/ { ids: [...] } -> { deleted: n }
+ */
+export function bulkDeleteReplays(ids) {
+  return request({
+    url: '/replays/bulk-delete/',
+    method: 'post',
+    data: { ids },
+    timeout: 30000,
+  })
+}

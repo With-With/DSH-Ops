@@ -829,6 +829,10 @@ def run_stage_async(task_set: TaskSet, stage: str) -> TaskSet:
             raise ValueError(
                 f"cannot run {stage} stage from status {task_set.status!r}"
             )
+        # P4：新一轮执行前清历史取消标志（防残留污染本次）
+        from .cancel import clear_cancel  # type: ignore
+
+        clear_cancel(task_set.id)
 
         # ---- 同步完成转换 + 建 StageJob --------------------------------------
         _transition(task_set, spec["running"])
@@ -869,6 +873,9 @@ def run_stage_async(task_set: TaskSet, stage: str) -> TaskSet:
                 pass
         finally:
             lock.release()
+            from .cancel import clear_cancel as _cc  # type: ignore
+
+            _cc(ts_pk)  # 本轮结束，清取消标志（不影响下次）
             connections.close_all()
 
     threading.Thread(target=_worker, daemon=True, name=f"taskset-stage-{stage}-{ts_pk}").start()
@@ -1198,38 +1205,66 @@ def run_pipeline(task_set: TaskSet) -> TaskSet:
     """按顺序执行完整流水线，任一步失败即停（StageJob 留痕）。
 
     幂等：已在 replay_done 之后的状态会跳过已完成阶段。
+    P4：每个阶段开始前检查取消标志（协作式终止），当前阶段跑完即停。
     """
+    from .cancel import is_cancelled  # type: ignore
     from .services import run_replay_stage  # type: ignore
+
+    def _cancelled() -> bool:
+        return is_cancelled(task_set.id)
 
     # 1. replay（若未完成）
     if task_set.status == "created":
+        if _cancelled():
+            _mark_user_cancelled(task_set)
+            return task_set
         task_set = run_replay_stage(task_set)
         if task_set.status == "failed":
             return task_set
 
     # 2. extract
     if task_set.status in ("replay_done", "failed"):
+        if _cancelled():
+            _mark_user_cancelled(task_set)
+            return task_set
         task_set = run_extract_stage(task_set)
         if task_set.status != "extract_done":
             return task_set
 
     # 3. design
     if task_set.status == "extract_done":
+        if _cancelled():
+            _mark_user_cancelled(task_set)
+            return task_set
         task_set = run_design_stage(task_set)
         if task_set.status != "design_done":
             return task_set
 
     # 4. review
     if task_set.status == "design_done":
+        if _cancelled():
+            _mark_user_cancelled(task_set)
+            return task_set
         task_set = run_review_stage(task_set)
         if task_set.status != "review_done":
             return task_set
 
     # 5. generate
     if task_set.status == "review_done":
+        if _cancelled():
+            _mark_user_cancelled(task_set)
+            return task_set
         task_set = run_generate_stage(task_set)
 
     return task_set
+
+
+def _mark_user_cancelled(task_set: TaskSet) -> None:
+    """用户终止的落库标记：状态 failed + 明确 error（当前阶段若有产物已保留）。"""
+    task_set.status = "failed"
+    task_set.error = "已由用户终止（当前阶段结束后停止）"
+    task_set.current_stage = ""
+    task_set.save(update_fields=["status", "error", "current_stage", "updated_at"])
 
 
 def run_pipeline_async(task_set: TaskSet) -> TaskSet:
@@ -1244,6 +1279,11 @@ def run_pipeline_async(task_set: TaskSet) -> TaskSet:
     lock = _stage_lock(task_set.id)
     if not lock.acquire(blocking=False):
         raise ValueError(f"任务集 #{task_set.id} 已有阶段/流水线正在执行中")
+
+    # P4：新一轮流水线前清历史取消标志
+    from .cancel import clear_cancel  # type: ignore
+
+    clear_cancel(task_set.id)
 
     ts_pk = task_set.pk
 
@@ -1265,6 +1305,9 @@ def run_pipeline_async(task_set: TaskSet) -> TaskSet:
                 pass
         finally:
             lock.release()
+            from .cancel import clear_cancel as _cc  # type: ignore
+
+            _cc(ts_pk)  # 本轮结束，清取消标志（不影响下次）
             connections.close_all()
 
     threading.Thread(

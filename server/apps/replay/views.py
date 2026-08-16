@@ -124,3 +124,39 @@ class ReplayRunViewSet(viewsets.GenericViewSet):
             filename=f"replay_{instance.pk}_trace.zip",
         )
         return response
+
+    @action(detail=True, methods=["get"], url_path="video")
+    def video_stream(self, request, pk=None):
+        """GET /api/replays/{id}/video/ — 页面级回放视频（webm，内嵌播放）。"""
+        instance = self.get_object()
+        video_path = instance.video_path
+        if not video_path or not os.path.exists(video_path):
+            raise Http404("回放视频不存在")
+        response = FileResponse(
+            open(video_path, "rb"),
+            content_type="video/webm",
+        )
+        response["Content-Disposition"] = "inline"
+        return response
+
+    @action(detail=False, methods=["post"], url_path="bulk-delete")
+    def bulk_delete(self, request):
+        """POST /api/replays/bulk-delete/ {ids: [1,2]} — 软删多条记录。"""
+        ids = (request.data or {}).get("ids") or []
+        if not isinstance(ids, list) or not ids:
+            return Response(
+                {"detail": "ids 必须是非空数组"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        qs = self.get_queryset().filter(pk__in=ids)
+        count = 0
+        for run in qs:
+            run.delete()  # 软删（BaseModel）
+            count += 1
+        from apps.core.models import AuditLog
+
+        AuditLog.objects.create(
+            action="replay.bulk_delete",
+            detail=f"批量删除回放记录 {count} 条（ids={ids}）",
+        )
+        return Response({"deleted": count})

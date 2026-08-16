@@ -14,18 +14,6 @@ const routes = [
         meta: { title: '运行时管理', icon: 'Cpu' },
       },
       {
-        path: 'recorder',
-        name: 'Recorder',
-        component: () => import('@/views/recorder/index.vue'),
-        meta: { title: '录制中心', icon: 'VideoCamera' },
-      },
-      {
-        path: 'replay',
-        name: 'Replay',
-        component: () => import('@/views/replay/index.vue'),
-        meta: { title: '回放中心', icon: 'VideoPlay' },
-      },
-      {
         path: 'assets',
         name: 'Assets',
         component: () => import('@/views/assets/index.vue'),
@@ -44,16 +32,29 @@ const routes = [
         meta: { title: '评审中心', icon: 'Message' },
       },
       {
-        path: 'obs',
-        name: 'Obs',
-        component: () => import('@/views/obs/index.vue'),
-        meta: { title: '观测中心', icon: 'DataLine' },
-      },
-      {
         path: 'ai-config',
         name: 'AiConfig',
-        component: () => import('@/views/placeholders/P3.vue'),
-        meta: { title: 'AI 配置', icon: 'MagicStick', phase: 'P3' },
+        component: () => import('@/views/ai-config/index.vue'),
+        meta: { title: 'AI 配置', icon: 'MagicStick' },
+      },
+      // 观测中心分组：概览 + 录制 + 回放（P4 导航重排）
+      {
+        path: 'obs',
+        name: 'ObsOverview',
+        component: () => import('@/views/obs/index.vue'),
+        meta: { title: '观测概览', icon: 'DataLine', group: '观测中心' },
+      },
+      {
+        path: 'obs/recorder',
+        name: 'ObsRecorder',
+        component: () => import('@/views/recorder/index.vue'),
+        meta: { title: '录制中心', icon: 'VideoCamera', group: '观测中心' },
+      },
+      {
+        path: 'obs/replay',
+        name: 'ObsReplay',
+        component: () => import('@/views/replay/index.vue'),
+        meta: { title: '回放中心', icon: 'VideoPlay', group: '观测中心' },
       },
     ],
   },

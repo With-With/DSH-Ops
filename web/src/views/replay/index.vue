@@ -29,6 +29,14 @@
             >
               {{ replaying ? '回放执行中...' : '开始回放' }}
             </el-button>
+            <el-button
+              type="danger"
+              :icon="Delete"
+              :disabled="selectedRows.length === 0"
+              @click="handleBulkDelete"
+            >
+              删除选中（{{ selectedRows.length }}）
+            </el-button>
           </div>
         </div>
       </template>
@@ -38,6 +46,7 @@
         :data="replayList"
         stripe
         style="width: 100%"
+        @selection-change="handleSelectionChange"
       >
         <template #empty>
           <el-empty description="暂无回放记录，选择脚本并点击【开始回放】">
@@ -45,6 +54,7 @@
           </el-empty>
         </template>
 
+        <el-table-column type="selection" width="48" />
         <el-table-column prop="id" label="ID" width="80" align="center" />
 
         <el-table-column label="所属录制" min-width="180" show-overflow-tooltip>
@@ -78,7 +88,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="Trace" width="100" align="center">
+        <el-table-column label="Trace" width="90" align="center">
           <template #default="{ row }">
             <el-tag
               v-if="row.trace_available"
@@ -92,6 +102,19 @@
           </template>
         </el-table-column>
 
+        <el-table-column label="视频" width="80" align="center">
+          <template #default="{ row }">
+            <el-tooltip :content="row.video_available ? '可页面级查看' : '无录像'" placement="top">
+              <el-icon
+                :color="row.video_available ? '#67c23a' : '#c0c4cc'"
+                :size="18"
+              >
+                <VideoCamera />
+              </el-icon>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="created_at" label="创建时间" width="180">
           <template #default="{ row }">
             <span v-if="row.created_at">{{ formatTime(row.created_at) }}</span>
@@ -99,8 +122,18 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="180" fixed="right" align="center">
+        <el-table-column label="操作" width="240" fixed="right" align="center">
           <template #default="{ row }">
+            <el-button
+              type="success"
+              link
+              size="small"
+              :icon="VideoCamera"
+              :disabled="!row.video_available"
+              @click="handleViewVideo(row)"
+            >
+              视频
+            </el-button>
             <el-button
               type="primary"
               link
@@ -109,7 +142,7 @@
               :disabled="!row.trace_available"
               @click="handleDownloadTrace(row)"
             >
-              下载 Trace
+              Trace
             </el-button>
             <el-button
               type="primary"
@@ -119,6 +152,15 @@
               @click="handleViewDetail(row)"
             >
               详情
+            </el-button>
+            <el-button
+              type="danger"
+              link
+              size="small"
+              :icon="Delete"
+              @click="handleDeleteOne(row)"
+            >
+              删除
             </el-button>
           </template>
         </el-table-column>
@@ -171,21 +213,41 @@
         </div>
       </div>
     </el-drawer>
+
+    <!-- 视频查看对话框 -->
+    <el-dialog
+      v-model="videoDialogVisible"
+      :title="currentVideo ? `回放视频 #${currentVideo.id}` : '回放视频'"
+      width="760px"
+      destroy-on-close
+    >
+      <video
+        v-if="currentVideo && currentVideo.video_url"
+        :src="currentVideo.video_url"
+        controls
+        autoplay
+        style="width: 100%; border-radius: 6px; background: #000"
+      />
+      <el-empty v-else description="该记录无回放视频" :image-size="80" />
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   VideoPlay,
+  VideoCamera,
   Download,
   View,
+  Delete,
 } from '@element-plus/icons-vue'
 import {
   getReplayList,
   startReplay,
   getReplayDetail,
+  bulkDeleteReplays,
 } from '@/api/replay'
 import { getRecordingList } from '@/api/recording'
 import { formatTime, formatDuration } from '@/utils/format'
@@ -194,6 +256,7 @@ import { formatTime, formatDuration } from '@/utils/format'
 const loading = ref(false)
 const replaying = ref(false)
 const replayList = ref([])
+const selectedRows = ref([])
 
 const recordingsLoading = ref(false)
 const recordingOptions = ref([])
@@ -201,6 +264,9 @@ const selectedRecordingId = ref(null)
 
 const detailDrawerVisible = ref(false)
 const currentDetail = ref(null)
+
+const videoDialogVisible = ref(false)
+const currentVideo = ref(null)
 
 // ---- 常量 / 工具 ----
 const STATUS_MAP = {
@@ -220,6 +286,41 @@ function statusText(status) {
 const hasFailedRecords = computed(() =>
   replayList.value.some((r) => r.status === 'failed')
 )
+
+function handleSelectionChange(rows) {
+  selectedRows.value = rows
+}
+
+function handleViewVideo(row) {
+  currentVideo.value = row
+  videoDialogVisible.value = true
+}
+
+async function handleDeleteOne(row) {
+  try {
+    await ElMessageBox.confirm(`确定删除回放记录 #${row.id}？（软删除）`, '删除确认', {
+      type: 'warning',
+    })
+    const result = await bulkDeleteReplays([row.id])
+    ElMessage.success(`已删除 ${result.deleted} 条`)
+    fetchList()
+  } catch (e) { /* 取消 */ }
+}
+
+async function handleBulkDelete() {
+  const ids = selectedRows.value.map((r) => r.id)
+  if (!ids.length) return
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${ids.length} 条回放记录？（软删除）`,
+      '批量删除确认',
+      { type: 'warning' },
+    )
+    const result = await bulkDeleteReplays(ids)
+    ElMessage.success(`已删除 ${result.deleted} 条`)
+    fetchList()
+  } catch (e) { /* 取消 */ }
+}
 
 // ---- actions ----
 async function fetchList() {

@@ -8,6 +8,7 @@ class RecordingSerializer(serializers.ModelSerializer):
     """录制脚本序列化器。"""
 
     actions = serializers.SerializerMethodField()
+    normalize_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Recording
@@ -19,6 +20,7 @@ class RecordingSerializer(serializers.ModelSerializer):
             "start_url",
             "raw_content",
             "normalized_content",
+            "normalize_status",
             "locators_count",
             "actions_count",
             "warnings",
@@ -32,6 +34,7 @@ class RecordingSerializer(serializers.ModelSerializer):
             "framework",
             "start_url",
             "normalized_content",
+            "normalize_status",
             "locators_count",
             "actions_count",
             "warnings",
@@ -51,6 +54,14 @@ class RecordingSerializer(serializers.ModelSerializer):
             return result["actions"]
         except Exception:
             return []
+
+    def get_normalize_status(self, obj):
+        """P4 #3.2：AI 重组状态 idle/running/done（模块级 running 表）。"""
+        from .codegen import normalize_is_running
+
+        if normalize_is_running(obj.id):
+            return "running"
+        return "done" if obj.normalized_content else "idle"
 
 
 class RecordingCreateSerializer(serializers.Serializer):

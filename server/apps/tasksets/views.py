@@ -56,9 +56,9 @@ class TaskSetViewSet(viewsets.ReadOnlyModelViewSet):
         from .stages import run_stage_async
 
         stage = (request.data or {}).get("stage")
-        if stage not in ("extract", "design"):
+        if stage not in ("extract", "design", "review", "generate"):
             return Response(
-                {"detail": "stage 必须是 extract 或 design"},
+                {"detail": "stage 必须是 extract/design/review/generate"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -94,3 +94,27 @@ class TaskSetViewSet(viewsets.ReadOnlyModelViewSet):
 
         out = TaskSetSerializer(instance=task_set)
         return Response(out.data, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel(self, request, pk=None):
+        """POST /api/tasksets/<id>/cancel/ - 请求终止流水线/阶段（P4）。
+
+        协作式终止：当前阶段（尤其 A4 的 DSH 会话）跑完后停止。
+        进行中返回 202；已终态且未请求过 409；幂等（重复请求仍 202）。
+        """
+        from .cancel import request_cancel
+
+        task_set = self.get_object()
+        in_progress = task_set.status in (
+            "replaying", "extracting", "designing", "reviewing", "generating",
+        )
+        if not in_progress and not task_set.cancel_requested:
+            return Response(
+                {"detail": f"任务集不在执行中（当前状态 {task_set.status}），无需终止"},
+                status=status.HTTP_409_CONFLICT,
+            )
+        request_cancel(task_set.id)
+        return Response(
+            {"detail": "已请求终止，将在当前阶段结束后停止", "status": task_set.status},
+            status=status.HTTP_202_ACCEPTED,
+        )

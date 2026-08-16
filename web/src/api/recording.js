@@ -41,3 +41,46 @@ export function deleteRecording(id) {
     method: 'delete',
   })
 }
+
+// ---- P4：codegen 浏览器录制 ----
+
+// 开始录制（打开浏览器）
+export function startCodegen({ name = '', start_url = '' }) {
+  return request({
+    url: '/recordings/codegen/start/',
+    method: 'post',
+    data: { name, start_url },
+    timeout: 30000,
+  })
+}
+
+// 录制会话状态
+export function getCodegenStatus() {
+  return request({
+    url: '/recordings/codegen/status/',
+    method: 'get',
+    timeout: 15000,
+  })
+}
+
+// 结束录制并保存（auto_analyze: 是否自动 AI 重组）
+export function stopCodegen({ session_id = '', auto_analyze = false }) {
+  return request({
+    url: '/recordings/codegen/stop/',
+    method: 'post',
+    data: { session_id, auto_analyze },
+    timeout: 30000,
+  })
+}
+
+// ---- P4：AI 重组（标准化脚本） ----
+
+// 触发 AI 重组（异步 202）
+export function normalizeRecording(id) {
+  return request({
+    url: `/recordings/${id}/normalize/`,
+    method: 'post',
+    data: {},
+    timeout: 30000,
+  })
+}

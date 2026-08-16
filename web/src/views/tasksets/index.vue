@@ -27,11 +27,22 @@
             <span v-else class="empty-tip">—</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="120" align="center">
+        <el-table-column prop="status" label="状态" width="150" align="center">
           <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" effect="light">
-              {{ statusText(row.status) }}
-            </el-tag>
+            <div class="status-cell">
+              <el-tag :type="statusTagType(row.status)" effect="light">
+                {{ statusText(row.status) }}
+              </el-tag>
+              <el-tag
+                v-if="row.in_progress"
+                type="primary"
+                effect="dark"
+                size="small"
+                class="in-progress-badge"
+              >
+                <span class="pulse-dot"></span>进行中{{ row.current_stage ? '·' + row.current_stage : '' }}
+              </el-tag>
+            </div>
           </template>
         </el-table-column>
         <el-table-column prop="current_stage" label="当前阶段" width="140">
@@ -148,6 +159,15 @@
         <div class="stage-actions-section">
           <h4 class="section-title">智能体流水线</h4>
           <div class="stage-actions">
+            <el-button
+              v-if="isInProgress"
+              type="danger"
+              :icon="CircleClose"
+              :disabled="cancelRequested"
+              @click="handleCancelPipeline"
+            >
+              {{ cancelRequested ? '已请求终止…' : '■ 终止流水线' }}
+            </el-button>
             <el-button
               type="primary"
               :icon="CaretRight"
@@ -419,7 +439,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, View, MagicStick, Share, CircleCheck, CircleClose, CaretRight, Document } from '@element-plus/icons-vue'
 import {
   getTasksetList,
@@ -427,6 +447,7 @@ import {
   getTasksetDetail,
   runStage,
   runPipeline,
+  cancelTaskset,
 } from '@/api/tasksets'
 import { getRecordingList } from '@/api/recording'
 import { formatTime, formatDuration } from '@/utils/format'
@@ -587,6 +608,31 @@ const canRunPipeline = computed(() => {
     currentDetail.value.status
   )
 })
+
+// P4：是否正在进行中（可终止）
+const isInProgress = computed(() => {
+  const s = currentDetail.value?.status
+  return ['replaying', 'extracting', 'designing', 'reviewing', 'generating'].includes(s)
+})
+
+const cancelRequested = computed(() => !!currentDetail.value?.cancel_requested)
+
+// P4：请求终止流水线（协作式：当前阶段结束后停止）
+async function handleCancelPipeline() {
+  if (!currentDetail.value) return
+  try {
+    await ElMessageBox.confirm(
+      '将在【当前阶段结束后】停止（AI 阶段无法中断），是否继续？',
+      '终止流水线',
+      { type: 'warning', confirmButtonText: '终止', cancelButtonText: '取消' },
+    )
+    await cancelTaskset(currentDetail.value.id)
+    ElMessage.info('已请求终止，将在当前阶段结束后停止')
+    // 重新拉详情（cancel_requested 置位）
+    const detail = await getTasksetDetail(currentDetail.value.id)
+    currentDetail.value = detail
+  } catch (e) { /* 取消或 409 */ }
+}
 
 // 阶段全景：当前活跃步骤索引
 const pipelineActiveStep = computed(() => {
@@ -857,6 +903,33 @@ onBeforeUnmount(() => {
 
 .detail-content {
   padding-right: 8px;
+}
+
+.status-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.in-progress-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pulse-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
 }
 
 .error-text {

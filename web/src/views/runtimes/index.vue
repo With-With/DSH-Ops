@@ -1,113 +1,158 @@
 <template>
   <div class="runtimes-page">
-    <el-card shadow="never" class="main-card">
-      <!-- 工具栏 -->
+    <!-- DSH 环境大卡片 -->
+    <el-card shadow="hover" class="dsh-card">
       <template #header>
         <div class="card-header">
-          <span class="card-title">DSH 运行时管理</span>
-          <el-button
-            type="primary"
-            :icon="Search"
-            :loading="detecting"
-            @click="handleDetect"
-          >
-            {{ detecting ? '检测中...' : '检测环境' }}
-          </el-button>
+          <span class="card-title"><el-icon><Cpu /></el-icon> DSH 环境</span>
+          <div class="header-actions">
+            <el-button
+              type="primary"
+              :icon="Search"
+              :loading="detecting"
+              @click="handleDetect"
+            >
+              {{ detecting ? '检测中...' : '检测环境' }}
+            </el-button>
+            <el-button :icon="Refresh" circle @click="refreshAll" />
+          </div>
         </div>
       </template>
 
-      <!-- 表格 -->
-      <el-table
-        v-loading="loading"
-        :data="runtimeList"
-        stripe
-        style="width: 100%"
-      >
-        <template #empty>
-          <el-empty description="尚未检测，点击【检测环境】开始发现本机 DSH 运行时">
-            <el-button type="primary" :icon="Search" @click="handleDetect">检测环境</el-button>
-          </el-empty>
-        </template>
-
-        <el-table-column prop="name" label="名称" min-width="140">
-          <template #default="{ row }">
-            <div class="name-cell">
-              <span>{{ row.name }}</span>
-              <el-tag
-                v-if="row.is_default"
-                type="primary"
-                size="small"
-                effect="light"
-                class="default-tag"
-              >
-                默认
-              </el-tag>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="version" label="版本" min-width="120" />
-        <el-table-column prop="node_version" label="Node 版本" min-width="120" />
-
-        <el-table-column prop="status" label="状态" width="120" align="center">
-          <template #default="{ row }">
+      <div v-if="runtimeList.length" class="dsh-card-body">
+        <div v-for="row in runtimeList" :key="row.id" class="dsh-env-item">
+          <div class="dsh-main">
+            <span class="dsh-name">{{ row.name }}</span>
+            <el-tag v-if="row.is_default" type="primary" size="small" effect="light">默认</el-tag>
             <el-tag :type="statusTagType(row.status)" effect="light">
               {{ statusText(row.status) }}
             </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="home_dir" label="DSH_HOME" min-width="220" show-overflow-tooltip />
-
-        <el-table-column prop="profiles" label="Profiles" min-width="180">
-          <template #default="{ row }">
-            <el-tag
-              v-for="p in (row.profiles || [])"
-              :key="p"
-              size="small"
-              type="info"
-              effect="plain"
-              class="profile-tag"
-            >
-              {{ p }}
-            </el-tag>
-            <span v-if="!row.profiles || row.profiles.length === 0" class="empty-tip">—</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="last_check_at" label="最后检查时间" min-width="180">
-          <template #default="{ row }">
-            <span v-if="row.last_check_at">{{ formatTime(row.last_check_at) }}</span>
-            <span v-else class="empty-tip">—</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作" width="180" fixed="right" align="center">
-          <template #default="{ row }">
+          </div>
+          <div class="dsh-meta">
+            <span class="meta-item">版本：<b>{{ row.version || '—' }}</b></span>
+            <span class="meta-item">来源：<b>{{ row.source || '—' }}</b></span>
+            <span class="meta-item">DSH_HOME：<b class="mono">{{ row.home_dir || '—' }}</b></span>
+            <span v-if="row.node_version" class="meta-item">Node：{{ row.node_version }}</span>
+            <span v-if="row.profiles && row.profiles.length" class="meta-item">
+              Profiles：
+              <el-tag
+                v-for="p in row.profiles"
+                :key="p"
+                size="small"
+                type="info"
+                effect="plain"
+                class="profile-tag"
+              >{{ p }}</el-tag>
+            </span>
+            <span v-if="row.last_check_at" class="meta-item">
+              检查于 {{ formatTime(row.last_check_at) }}
+            </span>
+          </div>
+          <div class="dsh-actions">
             <el-button
               type="primary"
-              link
+              plain
               size="small"
               :icon="RefreshRight"
+              :loading="healthCheckingId === row.id"
               @click="handleHealthCheck(row)"
             >
               健康检查
             </el-button>
             <el-button
               type="danger"
-              link
+              plain
               size="small"
               :icon="Delete"
-              @click="handleDelete(row)"
+              @click="openDeleteDialog(row)"
             >
               删除
             </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+          </div>
+        </div>
+      </div>
+      <el-empty
+        v-else
+        description="尚未检测，点击【检测环境】开始发现本机 DSH 运行时"
+        :image-size="90"
+      >
+        <el-button type="primary" :icon="Search" @click="handleDetect">检测环境</el-button>
+      </el-empty>
     </el-card>
 
-    <!-- 删除确认对话框（自定义） -->
+    <!-- 组件卡片网格 -->
+    <el-card shadow="never" class="components-card">
+      <template #header>
+        <div class="card-header">
+          <span class="card-title"><el-icon><Grid /></el-icon> 组件管理</span>
+          <el-text type="info" size="small">playwright / selenium / 系统浏览器 / chromium 通道</el-text>
+        </div>
+      </template>
+
+      <div v-loading="componentsLoading" class="component-grid">
+        <el-card
+          v-for="comp in componentList"
+          :key="comp.key"
+          shadow="hover"
+          class="component-card"
+        >
+          <div class="comp-head">
+            <el-icon :size="22" :color="comp.installed ? '#67c23a' : '#909399'">
+              <component :is="compIcon(comp.key)" />
+            </el-icon>
+            <span class="comp-name">{{ comp.name }}</span>
+            <el-tag
+              :type="comp.installed ? 'success' : 'info'"
+              size="small"
+              effect="light"
+            >
+              {{ comp.installed ? '已安装' : '未安装' }}
+            </el-tag>
+            <el-tag
+              v-if="comp.op_status === 'running'"
+              type="primary"
+              size="small"
+              effect="dark"
+            >{{ comp.op === 'install' ? '安装中…' : '卸载中…' }}</el-tag>
+          </div>
+          <div class="comp-detail">
+            <div v-if="comp.version" class="comp-version">v{{ comp.version }}</div>
+            <div class="comp-desc">{{ comp.detail }}</div>
+            <div v-if="comp.op_detail && comp.op_status === 'done'" class="comp-op-result">{{ comp.op_detail }}</div>
+          </div>
+          <div class="comp-actions">
+            <el-button
+              v-if="comp.actions.includes('install')"
+              type="primary"
+              size="small"
+              :icon="Download"
+              :loading="comp.op_status === 'running' && comp.op === 'install'"
+              :disabled="comp.op_status === 'running'"
+              @click="handleInstall(comp)"
+            >
+              安装
+            </el-button>
+            <el-button
+              v-if="comp.actions.includes('delete')"
+              type="danger"
+              size="small"
+              :icon="Delete"
+              :loading="comp.op_status === 'running' && comp.op === 'delete'"
+              :disabled="comp.op_status === 'running'"
+              @click="handleDeleteComponent(comp)"
+            >
+              删除
+            </el-button>
+            <el-tooltip v-if="comp.install_hint && !comp.actions.includes('install')" :content="comp.install_hint" placement="top">
+              <el-text type="info" size="small" class="hint-text">{{ comp.install_hint }}</el-text>
+            </el-tooltip>
+          </div>
+        </el-card>
+        <el-empty v-if="!componentsLoading && componentList.length === 0" description="无组件数据" :image-size="60" />
+      </div>
+    </el-card>
+
+    <!-- 删除确认对话框（DSH 环境） -->
     <el-dialog
       v-model="deleteDialogVisible"
       title="删除确认"
@@ -129,9 +174,7 @@
             同时删除 DSH_HOME 目录
           </el-checkbox>
         </div>
-        <p class="warning-tip">
-          ⚠️ 勾选后相关目录及其所有内容将被永久删除，无法恢复。
-        </p>
+        <p class="warning-tip">⚠️ 勾选后相关目录及其所有内容将被永久删除，无法恢复。</p>
       </div>
       <template #footer>
         <el-button @click="deleteDialogVisible = false">取消</el-button>
@@ -144,30 +187,37 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Search, RefreshRight, Delete } from '@element-plus/icons-vue'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  Search, RefreshRight, Refresh, Delete, Cpu, Grid, Download,
+  Monitor, ChromeFilled, Link, Picture,
+} from '@element-plus/icons-vue'
 import {
   getRuntimeList,
   detectRuntimes,
   healthCheckRuntime,
   deleteRuntime,
+  getComponents,
+  installComponent,
+  deleteComponent,
 } from '@/api/runtime'
 
-// ---- state ----
+// ---- DSH 环境 ----
 const loading = ref(false)
 const detecting = ref(false)
 const runtimeList = ref([])
+const healthCheckingId = ref(null)
 
 const deleteDialogVisible = ref(false)
 const deletingRow = ref(null)
 const deleting = ref(false)
-const deleteOptions = reactive({
-  physical: false,
-  deleteHome: false,
-})
+const deleteOptions = reactive({ physical: false, deleteHome: false })
 
-// ---- 常量 / 工具 ----
+// ---- 组件 ----
+const componentsLoading = ref(false)
+const componentList = ref([])
+
 const STATUS_MAP = {
   healthy: { text: '健康', type: 'success' },
   warning: { text: '警告', type: 'warning' },
@@ -175,11 +225,16 @@ const STATUS_MAP = {
   unknown: { text: '未知', type: 'info' },
 }
 
-function statusTagType(status) {
-  return STATUS_MAP[status]?.type || 'info'
-}
-function statusText(status) {
-  return STATUS_MAP[status]?.text || status || '未知'
+function statusTagType(status) { return STATUS_MAP[status]?.type || 'info' }
+function statusText(status) { return STATUS_MAP[status]?.text || status || '未知' }
+
+function compIcon(key) {
+  if (key === 'playwright') return Link
+  if (key === 'selenium') return Link
+  if (key === 'browser-msedge') return Monitor
+  if (key === 'browser-chrome') return ChromeFilled
+  if (key === 'pw-chromium') return Picture
+  return Grid
 }
 
 function formatTime(iso) {
@@ -197,7 +252,6 @@ async function fetchList() {
     const data = await getRuntimeList()
     runtimeList.value = Array.isArray(data) ? data : (data?.results || [])
   } catch (err) {
-    // 拦截器已弹 ElMessage，这里仅重置
     runtimeList.value = []
   } finally {
     loading.value = false
@@ -208,8 +262,8 @@ async function handleDetect() {
   detecting.value = true
   try {
     await detectRuntimes()
-    ElMessage.success('环境检测完成')
-    await fetchList()
+    ElMessage.success('检测完成')
+    fetchList()
   } catch (err) {
     // 拦截器已提示
   } finally {
@@ -218,20 +272,22 @@ async function handleDetect() {
 }
 
 async function handleHealthCheck(row) {
+  healthCheckingId.value = row.id
   try {
-    const updated = await healthCheckRuntime(row.id)
-    // 用后端返回的实例替换本地数据
-    const idx = runtimeList.value.findIndex((r) => r.id === row.id)
-    if (idx > -1 && updated) {
-      runtimeList.value.splice(idx, 1, updated)
+    const result = await healthCheckRuntime(row.id)
+    if (result.passed) {
+      ElMessage.success(`健康检查通过（${result.detail?.profile_used || ''}）`)
+    } else {
+      ElMessage.error(`健康检查失败：${result.error || '未知原因'}`)
     }
-    ElMessage.success('健康检查完成')
   } catch (err) {
     // 拦截器已提示
+  } finally {
+    healthCheckingId.value = null
   }
 }
 
-function handleDelete(row) {
+function openDeleteDialog(row) {
   deletingRow.value = row
   deleteOptions.physical = false
   deleteOptions.deleteHome = false
@@ -239,11 +295,10 @@ function handleDelete(row) {
 }
 
 async function confirmDelete() {
-  if (!deletingRow.value) return
   deleting.value = true
   try {
     await deleteRuntime(deletingRow.value.id, {
-      physical: deleteOptions.physical,
+      confirm_physical: deleteOptions.physical,
       delete_home: deleteOptions.deleteHome,
     })
     ElMessage.success('删除成功')
@@ -256,19 +311,83 @@ async function confirmDelete() {
   }
 }
 
-// ---- 生命周期 ----
+// ---- 组件 ----
+async function fetchComponents() {
+  componentsLoading.value = true
+  try {
+    const data = await getComponents()
+    componentList.value = Array.isArray(data) ? data : (data?.results || [])
+  } catch (err) {
+    componentList.value = []
+  } finally {
+    componentsLoading.value = false
+  }
+}
+
+async function handleInstall(comp) {
+  try {
+    await installComponent(comp.key)
+    ElMessage.info(`「${comp.name}」安装任务已启动（${comp.install_hint}）`)
+    setTimeout(fetchComponents, 2000)
+    startComponentPolling()
+  } catch (err) { /* 拦截器已提示 */ }
+}
+
+async function handleDeleteComponent(comp) {
+  try {
+    await ElMessageBox.confirm(`确定删除组件「${comp.name}」？`, '删除组件', {
+      type: 'warning',
+      confirmButtonText: '删除',
+    })
+    await deleteComponent(comp.key)
+    ElMessage.info(`「${comp.name}」卸载任务已启动`)
+    setTimeout(fetchComponents, 2000)
+    startComponentPolling()
+  } catch (e) { /* 取消 */ }
+}
+
+// 有进行中任务时 3s 轮询组件状态
+let compTimer = null
+function startComponentPolling() {
+  if (compTimer) return
+  compTimer = setInterval(async () => {
+    await fetchComponents()
+    const anyRunning = componentList.value.some((c) => c.op_status === 'running')
+    if (!anyRunning) {
+      clearInterval(compTimer)
+      compTimer = null
+    }
+  }, 3000)
+}
+
+async function refreshAll() {
+  await Promise.all([fetchList(), fetchComponents()])
+}
+
 onMounted(() => {
   fetchList()
+  fetchComponents()
+})
+
+onBeforeUnmount(() => {
+  if (compTimer) {
+    clearInterval(compTimer)
+    compTimer = null
+  }
 })
 </script>
 
 <style scoped>
 .runtimes-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   height: 100%;
+  overflow: auto;
+  padding-right: 2px;
 }
 
-.main-card {
-  height: 100%;
+.dsh-card, .components-card {
   border-radius: 8px;
 }
 
@@ -279,42 +398,127 @@ onMounted(() => {
 }
 
 .card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 16px;
   font-weight: 600;
   color: var(--do-fg);
 }
 
-.name-cell {
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dsh-env-item {
+  padding: 14px 16px;
+  border: 1px solid var(--do-border-light, #e4e7ed);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  background: var(--do-bg-page, #fff);
+}
+
+.dsh-env-item:last-child { margin-bottom: 0; }
+
+.dsh-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dsh-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--do-fg);
+}
+
+.dsh-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--do-fg-secondary);
+}
+
+.meta-item b { color: var(--do-fg); font-weight: 600; }
+.meta-item .mono { font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; }
+
+.dsh-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.profile-tag { margin-right: 4px; }
+
+.component-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  min-height: 100px;
+}
+
+.component-card {
+  border-radius: 8px;
+}
+
+.comp-head {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.profile-tag {
-  margin-right: 4px;
+.comp-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--do-fg);
+}
+
+.comp-detail {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--do-fg-secondary);
+  line-height: 1.6;
+}
+
+.comp-version {
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: var(--do-success);
   margin-bottom: 4px;
 }
 
-.empty-tip {
-  color: var(--do-fg-tertiary);
+.comp-op-result {
+  margin-top: 6px;
+  color: var(--do-primary);
+  font-size: 12px;
 }
 
-.delete-dialog-body {
+.comp-actions {
+  margin-top: 12px;
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hint-text {
+  line-height: 1.5;
 }
 
 .delete-options {
+  margin-top: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 0 4px;
 }
 
 .warning-tip {
-  margin: 0;
-  font-size: 12px;
-  color: var(--do-warning);
+  margin: 12px 0 0 0;
+  font-size: 12.5px;
+  color: var(--do-danger);
 }
 </style>

@@ -48,6 +48,12 @@ class TaskSet(BaseModel):
     )
     current_stage = models.CharField("当前阶段", max_length=64, blank=True, default="")
     error = models.TextField("错误信息", blank=True, default="")
+    cancel_requested = models.BooleanField(
+        "已请求终止",
+        default=False,
+        db_index=True,
+        help_text="P4：协作式取消标志--流水线在阶段间检查，当前阶段跑完后停止",
+    )
 
     class Meta:
         db_table = "tasksets"

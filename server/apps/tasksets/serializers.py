@@ -44,6 +44,11 @@ class TaskSetSerializer(serializers.ModelSerializer):
     stage_jobs = StageJobSerializer(many=True, read_only=True)
     drafts = serializers.SerializerMethodField()
     generated = serializers.SerializerMethodField()
+    in_progress = serializers.SerializerMethodField()
+
+    IN_PROGRESS_STATUSES = frozenset(
+        ("replaying", "extracting", "designing", "reviewing", "generating")
+    )
 
     class Meta:
         model = TaskSet
@@ -55,6 +60,8 @@ class TaskSetSerializer(serializers.ModelSerializer):
             "status",
             "current_stage",
             "error",
+            "cancel_requested",
+            "in_progress",
             "created_at",
             "updated_at",
             "stage_jobs",
@@ -67,12 +74,18 @@ class TaskSetSerializer(serializers.ModelSerializer):
             "status",
             "current_stage",
             "error",
+            "cancel_requested",
+            "in_progress",
             "created_at",
             "updated_at",
             "stage_jobs",
             "drafts",
             "generated",
         ]
+
+    def get_in_progress(self, obj) -> bool:
+        """P4 #6.1：流程是否正在进行中（供列表/详情显眼徽章）。"""
+        return obj.status in self.IN_PROGRESS_STATUSES
 
     def get_drafts(self, obj) -> list:
         """本任务集的草案摘要（最新在前）。跨 app lazy import。"""

@@ -17,22 +17,36 @@
       active-text-color="var(--do-sidebar-text-active)"
       class="sidebar-menu"
     >
-      <el-menu-item
-        v-for="item in menuItems"
-        :key="item.path"
-        :index="item.path"
-      >
-        <el-icon><component :is="item.icon" /></el-icon>
-        <template #title>
-          <span>{{ item.title }}</span>
-          <el-tag
-            v-if="item.phase"
-            :type="phaseTagType(item.phase)"
-            size="small"
-            class="phase-tag"
-          >{{ item.phase }}</el-tag>
-        </template>
-      </el-menu-item>
+      <template v-for="item in menuTree" :key="item.key">
+        <!-- 分组子菜单 -->
+        <el-sub-menu v-if="item.children" :index="item.key">
+          <template #title>
+            <el-icon><component :is="item.icon" /></el-icon>
+            <span>{{ item.title }}</span>
+          </template>
+          <el-menu-item
+            v-for="child in item.children"
+            :key="child.path"
+            :index="child.path"
+          >
+            <el-icon><component :is="child.icon" /></el-icon>
+            <template #title><span>{{ child.title }}</span></template>
+          </el-menu-item>
+        </el-sub-menu>
+        <!-- 普通菜单项 -->
+        <el-menu-item v-else :index="item.path">
+          <el-icon><component :is="item.icon" /></el-icon>
+          <template #title>
+            <span>{{ item.title }}</span>
+            <el-tag
+              v-if="item.phase"
+              :type="phaseTagType(item.phase)"
+              size="small"
+              class="phase-tag"
+            >{{ item.phase }}</el-tag>
+          </template>
+        </el-menu-item>
+      </template>
     </el-menu>
   </div>
 </template>
@@ -50,15 +64,23 @@ defineProps({
 
 const route = useRoute()
 
-const menuItems = [
-  { path: '/runtimes', title: '运行时管理', icon: 'Cpu' },
-  { path: '/recorder', title: '录制中心', icon: 'VideoCamera' },
-  { path: '/replay', title: '回放中心', icon: 'VideoPlay' },
-  { path: '/assets', title: '元素仓', icon: 'Picture' },
-  { path: '/tasksets', title: '任务集', icon: 'Collection' },
-  { path: '/reviews', title: '评审中心', icon: 'Message' },
-  { path: '/obs', title: '观测中心', icon: 'DataLine' },
-  { path: '/ai-config', title: 'AI 配置', icon: 'MagicStick', phase: 'P3' },
+const menuTree = [
+  { key: 'runtimes', path: '/runtimes', title: '运行时管理', icon: 'Cpu' },
+  { key: 'assets', path: '/assets', title: '元素仓', icon: 'Picture' },
+  { key: 'tasksets', path: '/tasksets', title: '任务集', icon: 'Collection' },
+  { key: 'reviews', path: '/reviews', title: '评审中心', icon: 'Message' },
+  { key: 'ai-config', path: '/ai-config', title: 'AI 配置', icon: 'MagicStick' },
+  // P4：观测中心分组（概览 + 录制 + 回放）
+  {
+    key: 'obs-group',
+    title: '观测中心',
+    icon: 'DataLine',
+    children: [
+      { path: '/obs', title: '观测概览', icon: 'DataAnalysis' },
+      { path: '/obs/recorder', title: '录制中心', icon: 'VideoCamera' },
+      { path: '/obs/replay', title: '回放中心', icon: 'VideoPlay' },
+    ],
+  },
 ]
 
 const activeMenu = computed(() => route.path)

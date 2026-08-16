@@ -129,3 +129,78 @@ class RuntimeViewSet(viewsets.GenericViewSet):
             for log in logs
         ]
         return Response(data, status=status.HTTP_200_OK)
+
+    # ------------------------------------------------------------------
+    # P4：组件管理（playwright / selenium / 浏览器 / chromium 通道）
+    # ------------------------------------------------------------------
+
+    @action(detail=False, methods=["get"], url_path="components")
+    def components(self, request):
+        """GET /api/runtimes/components/ - 组件状态列表（P4 卡片页数据源）。"""
+        from .components import detect_components, list_running_tasks
+
+        tasks = list_running_tasks()
+        items = []
+        for item in detect_components():
+            task = tasks.get(item["key"])
+            if task and task.get("running"):
+                item["op_status"] = "running"
+                item["op_detail"] = task.get("detail", "执行中")
+            elif task:
+                item["op_status"] = "done"
+                item["op_detail"] = task.get("detail", "")
+            else:
+                item["op_status"] = "idle"
+                item["op_detail"] = ""
+            items.append(item)
+        return Response({"results": items})
+
+    @action(detail=False, methods=["post"], url_path="components/install")
+    def component_install(self, request):
+        """POST /api/runtimes/components/install/ {key} - 安装组件（线程执行）。"""
+        from .components import install_component, is_task_running
+
+        key = (request.data or {}).get("key", "")
+        if not key:
+            return Response({"detail": "key 必填"}, status=status.HTTP_400_BAD_REQUEST)
+        if is_task_running(key):
+            return Response(
+                {"detail": f"组件 {key} 正在处理中，请稍候"},
+                status=status.HTTP_409_CONFLICT,
+            )
+        try:
+            way = install_component(key)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.core.models import AuditLog
+
+        AuditLog.objects.create(action="runtime.component_install", detail=f"{key}: {way}")
+        return Response({"key": key, "op": "install", "status": "running", "way": way})
+
+    @action(detail=False, methods=["post"], url_path="components/delete")
+    def component_delete(self, request):
+        """POST /api/runtimes/components/delete/ {key, confirm} - 删除组件（线程执行）。"""
+        from .components import delete_component, is_task_running
+
+        key = (request.data or {}).get("key", "")
+        confirm = (request.data or {}).get("confirm", False)
+        if not key:
+            return Response({"detail": "key 必填"}, status=status.HTTP_400_BAD_REQUEST)
+        if not confirm:
+            return Response(
+                {"detail": "删除组件需要 confirm=true"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if is_task_running(key):
+            return Response(
+                {"detail": f"组件 {key} 正在处理中，请稍候"},
+                status=status.HTTP_409_CONFLICT,
+            )
+        try:
+            way = delete_component(key)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.core.models import AuditLog
+
+        AuditLog.objects.create(action="runtime.component_delete", detail=f"{key}: {way}")
+        return Response({"key": key, "op": "delete", "status": "running", "way": way})

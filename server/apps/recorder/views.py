@@ -80,3 +80,90 @@ class RecordingViewSet(viewsets.GenericViewSet):
                 {"detail": f"解析失败: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    # ------------------------------------------------------------------
+    # P4：codegen 浏览器录制 + AI 重组
+    # ------------------------------------------------------------------
+
+    @action(detail=False, methods=["post"], url_path="codegen/start")
+    def codegen_start(self, request):
+        """POST /api/recordings/codegen/start/ — 打开浏览器开始交互录制。"""
+        from .codegen import get_status, start_session
+
+        if get_status()["active"]:
+            return Response(
+                {"detail": "已有录制会话进行中，请先结束"},
+                status=status.HTTP_409_CONFLICT,
+            )
+        session = start_session(
+            name=(request.data or {}).get("name", ""),
+            start_url=(request.data or {}).get("start_url", ""),
+        )
+        return Response(
+            {
+                "session_id": session["session_id"],
+                "name": session["name"],
+                "start_url": session["start_url"],
+                "started_at": session["started_at"],
+                "tip": "浏览器已打开，请操作；完成后调用 stop 结束并保存",
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    @action(detail=False, methods=["get"], url_path="codegen/status")
+    def codegen_status(self, request):
+        """GET /api/recordings/codegen/status/ — 录制会话状态。"""
+        from .codegen import get_status
+
+        return Response(get_status())
+
+    @action(detail=False, methods=["post"], url_path="codegen/stop")
+    def codegen_stop(self, request):
+        """POST /api/recordings/codegen/stop/ — 结束录制并保存（可自动 AI 分析）。"""
+        from .codegen import stop_session
+
+        session_id = (request.data or {}).get("session_id", "")
+        if not session_id:
+            return Response(
+                {"detail": "session_id 必填"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            result = stop_session(
+                session_id,
+                auto_analyze=bool((request.data or {}).get("auto_analyze", False)),
+            )
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        return Response(result, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="normalize")
+    def normalize(self, request, pk=None):
+        """POST /api/recordings/{id}/normalize/ — AI 重组为标准脚本（异步 202）。"""
+        from .codegen import normalize_is_running
+        from .normalizer import normalize_recording
+
+        instance = self.get_object()
+        if normalize_is_running(instance.id):
+            return Response(
+                {"detail": "该录制正在 AI 重组中"}, status=status.HTTP_409_CONFLICT
+            )
+
+        def _worker():
+            from django.db import connections
+
+            try:
+                normalize_recording(instance)
+            except Exception:
+                pass
+            finally:
+                connections.close_all()
+
+        import threading
+
+        threading.Thread(
+            target=_worker, daemon=True, name=f"recorder-normalize-{instance.id}"
+        ).start()
+        return Response(
+            {"recording_id": instance.id, "status": "running"},
+            status=status.HTTP_202_ACCEPTED,
+        )

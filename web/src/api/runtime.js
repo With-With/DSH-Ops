@@ -45,3 +45,34 @@ export function deleteRuntime(id, { physical = false, delete_home = false } = {}
     method: 'delete',
   })
 }
+
+// ---- P4：组件管理（playwright/selenium/浏览器/chromium 通道） ----
+
+// 组件状态列表
+export function getComponents() {
+  return request({
+    url: '/runtimes/components/',
+    method: 'get',
+    timeout: 30000,
+  })
+}
+
+// 安装组件（线程执行，202 语义）
+export function installComponent(key) {
+  return request({
+    url: '/runtimes/components/install/',
+    method: 'post',
+    data: { key },
+    timeout: 30000,
+  })
+}
+
+// 删除组件（confirm=true 必须）
+export function deleteComponent(key) {
+  return request({
+    url: '/runtimes/components/delete/',
+    method: 'post',
+    data: { key, confirm: true },
+    timeout: 30000,
+  })
+}
