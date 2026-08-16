@@ -134,6 +134,8 @@ class AgentGateway:
         mapping = {
             "a1_extract": "mock_pom.json",      # tasksets.stages 实际阶段名
             "a2_design": "mock_matrix.json",
+            "a3_review": "mock_review.json",
+            "a4_generate": "mock_generate.json",
             "pom_extract": "mock_pom.json",     # 兼容旧名
             "matrix_design": "mock_matrix.json",
             "pom": "mock_pom.json",
@@ -189,18 +191,25 @@ class AgentGateway:
         task_set_id,
         recording_id,
         timeout_seconds: float,
+        input_files: dict | None = None,
     ) -> AgentInvocation:
         """真实模式：subprocess 调用 dsh --profile headless。
 
         指令传递：完整指令写入工作区根目录 task.md（避免 Windows cmd.exe
         命令行 8191 字符上限——A1 指令含完整 schema 常超 9KB），命令行只传
         短指令让智能体读取 task.md 后执行并仅输出 JSON 围栏。
+
+        input_files: {相对文件名: 文本内容}，启动前写入工作区
+        （A4 生成阶段注入 matrix.json / pom.json / elements.json）。
         """
         dsh_cmd = self._dsh_cmd()
         ws_dir = self._workspace_dir()
         env = self._build_env()
 
-        # 指令落盘 + 短命令行
+        # 输入文件落盘 + 指令落盘 + 短命令行
+        for fname, content in (input_files or {}).items():
+            safe_name = Path(fname).name  # 防目录穿越
+            (ws_dir / safe_name).write_text(content, encoding="utf-8")
         task_file = ws_dir / "task.md"
         task_file.write_text(instruction, encoding="utf-8")
         cli_instruction = (
@@ -270,6 +279,7 @@ class AgentGateway:
             duration_ms=duration_ms,
             mock=False,
             error=error_msg,
+            workspace_path=str(ws_dir),
         )
         return inv
 
@@ -284,15 +294,18 @@ class AgentGateway:
         task_set_id: int | None = None,
         recording_id: int | None = None,
         timeout: float | None = None,
+        input_files: dict | None = None,
     ) -> AgentInvocation:
         """执行一个 Agent 阶段任务，返回 AgentInvocation 记录。
 
         Args:
-            stage: 阶段名（如 pom_extract / matrix_design）
+            stage: 阶段名（如 a1_extract / a2_design / a3_review / a4_generate）
             instruction: 给 DSH agent 的指令文本
             task_set_id: 关联任务集 ID（可选）
             recording_id: 关联录制 ID（可选）
             timeout: 超时秒数（可选，默认读环境变量或 300s）
+            input_files: {相对文件名: 文本内容}，真实模式写入工作区
+                （A4 生成阶段注入输入文件；mock 模式忽略）
 
         Returns:
             AgentInvocation 实例（已入库）
@@ -301,4 +314,6 @@ class AgentGateway:
             return self._run_mock(stage, instruction, task_set_id, recording_id)
 
         timeout_s = self._timeout(timeout)
-        return self._run_real(stage, instruction, task_set_id, recording_id, timeout_s)
+        return self._run_real(
+            stage, instruction, task_set_id, recording_id, timeout_s, input_files
+        )

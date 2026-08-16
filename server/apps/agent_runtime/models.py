@@ -19,7 +19,7 @@ class AgentInvocation(BaseModel):
         ("error", "错误"),
     ]
 
-    stage = models.CharField("阶段", max_length=64, db_index=True, help_text="如 pom_extract / matrix_design")
+    stage = models.CharField("阶段", max_length=64, db_index=True, help_text="如 a1_extract / a2_design / a3_review / a4_generate")
     task_set_id = models.IntegerField("任务集 ID", null=True, blank=True, db_index=True)
     recording_id = models.IntegerField("录制 ID", null=True, blank=True, db_index=True)
     instruction = models.TextField("指令文本")
@@ -31,6 +31,7 @@ class AgentInvocation(BaseModel):
     duration_ms = models.IntegerField("耗时(ms)", default=0)
     mock = models.BooleanField("是否 Mock", default=False, db_index=True)
     error = models.TextField("错误信息", blank=True, default="")
+    workspace_path = models.CharField("工作区路径", max_length=512, blank=True, default="")
 
     class Meta:
         db_table = "agent_runtime_invocations"
@@ -52,6 +53,7 @@ class ArtifactDraft(BaseModel):
     KIND_CHOICES = [
         ("pom", "POM 页面对象模型"),
         ("matrix", "场景矩阵"),
+        ("review", "A3 评审报告"),
     ]
 
     STATUS_CHOICES = [

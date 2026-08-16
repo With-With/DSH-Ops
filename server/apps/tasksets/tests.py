@@ -270,3 +270,279 @@ class TaskSetApiTests(TestCase):
         # stage_jobs 里有 replay 阶段
         stages = [j["stage"] for j in data["stage_jobs"]]
         self.assertIn("replay", stages)
+
+
+# ---------------------------------------------------------------------------
+# P3：A3 评审 / A4 生成 / 流水线
+# ---------------------------------------------------------------------------
+
+def _make_drafts(task_set_id: int):
+    """给任务集造 pom + matrix 有效草案（供 review/generate 消费）。"""
+    from apps.agent_runtime.models import ArtifactDraft
+
+    ArtifactDraft.objects.create(
+        task_set_id=task_set_id,
+        kind="pom",
+        content={"schema_version": "1.0.0-dev", "pages": [], "elements": [],
+                 "actions": [], "params": [], "confidence": 0.9, "source": {}},
+        schema_version="1.0.0-dev",
+        valid=True,
+        status="draft",
+    )
+    ArtifactDraft.objects.create(
+        task_set_id=task_set_id,
+        kind="matrix",
+        content={"schema_version": "1.0.0-dev"},
+        schema_version="1.0.0-dev",
+        valid=True,
+        status="draft",
+    )
+
+
+def _fake_gateway(payload: dict):
+    """构造 mock gateway 工厂：run_stage 返回带 payload 的伪 invocation。"""
+
+    class _Inv:
+        id = 1
+        status = "success"
+        parsed_json = payload
+        duration_ms = 12
+        mock = True
+        error = ""
+        workspace_path = ""
+
+    class _GW:
+        def run_stage(self, *a, **kw):
+            return _Inv()
+
+    return _GW()
+
+
+class ReviewStageTests(TestCase):
+    def _ts(self):
+        ts = create_task_set("评审测试", recording_id=1)
+        ts.status = "design_done"
+        ts.save(update_fields=["status", "updated_at"])
+        _make_drafts(ts.id)
+        return ts
+
+    def test_verdict_pass(self):
+        from unittest.mock import patch
+
+        from .stages import run_review_stage
+
+        ts = self._ts()
+        with patch("apps.tasksets.stages.get_gateway",
+                   return_value=_fake_gateway({"verdict": "pass", "blocking_issues": [],
+                                               "suggestions": ["x"], "confidence": 0.9})):
+            ts = run_review_stage(ts)
+        self.assertEqual(ts.status, "review_done")
+        job = StageJob.objects.get(task_set=ts, stage="review")
+        self.assertEqual(job.status, "success")
+        self.assertEqual(job.detail.get("verdict"), "pass")
+
+    def test_verdict_changes_needed(self):
+        from unittest.mock import patch
+
+        from .stages import run_review_stage
+
+        ts = self._ts()
+        with patch("apps.tasksets.stages.get_gateway",
+                   return_value=_fake_gateway({"verdict": "changes_needed",
+                                               "blocking_issues": ["缺空密码用例"],
+                                               "suggestions": [], "confidence": 0.6})), \
+             patch.dict("os.environ", {"DSHOPS_REVIEW_AUTO_PASS": ""}, clear=False):
+            ts = run_review_stage(ts)
+        self.assertEqual(ts.status, "failed")
+        self.assertIn("缺空密码用例", ts.error)
+
+    def test_verdict_changes_needed_auto_pass(self):
+        """DSHOPS_REVIEW_AUTO_PASS=1 时 changes_needed 放行（问题留档）。"""
+        from unittest.mock import patch
+
+        from .stages import run_review_stage
+
+        ts = self._ts()
+        with patch("apps.tasksets.stages.get_gateway",
+                   return_value=_fake_gateway({"verdict": "changes_needed",
+                                               "blocking_issues": ["缺空密码用例"],
+                                               "suggestions": [], "confidence": 0.6})), \
+             patch.dict("os.environ", {"DSHOPS_REVIEW_AUTO_PASS": "1"}, clear=False):
+            ts = run_review_stage(ts)
+        self.assertEqual(ts.status, "review_done")
+        job = StageJob.objects.get(task_set=ts, stage="review")
+        self.assertTrue(job.detail.get("auto_pass"))
+
+    def test_guard(self):
+        from .stages import run_review_stage
+
+        ts = create_task_set("守卫测试", recording_id=1)  # status=created
+        with self.assertRaises(ValueError):
+            run_review_stage(ts)
+
+
+class GenerateStageTests(TestCase):
+    def _ts(self):
+        ts = create_task_set("生成测试", recording_id=1)
+        ts.status = "review_done"
+        ts.save(update_fields=["status", "updated_at"])
+        _make_drafts(ts.id)
+        return ts
+
+    def test_generate_pass(self):
+        from unittest.mock import patch
+
+        from .models import GeneratedRun
+        from .stages import run_generate_stage
+
+        ts = self._ts()
+        payload = {
+            "status": "pass", "script_file": "test_login.py",
+            "rounds": 2, "summary": "修了断言时机",
+            "script_content": "print('x')", "output_tail": "1 passed",
+        }
+        with patch("apps.tasksets.stages.get_gateway",
+                   return_value=_fake_gateway(payload)):
+            ts = run_generate_stage(ts)
+        self.assertEqual(ts.status, "generate_done")
+        gr = GeneratedRun.objects.get(task_set_id=ts.id)
+        self.assertEqual(gr.status, "pass")
+        self.assertEqual(gr.script_file, "test_login.py")
+        self.assertEqual(gr.script_content, "print('x')")
+        self.assertEqual(gr.rounds, 2)
+
+    def test_generate_fail(self):
+        from unittest.mock import patch
+
+        from .models import GeneratedRun
+        from .stages import run_generate_stage
+
+        ts = self._ts()
+        payload = {"status": "fail", "script_file": "test_login.py", "rounds": 3,
+                   "summary": "定位器不稳定", "script_content": "", "output_tail": "1 failed"}
+        with patch("apps.tasksets.stages.get_gateway",
+                   return_value=_fake_gateway(payload)):
+            ts = run_generate_stage(ts)
+        self.assertEqual(ts.status, "failed")
+        gr = GeneratedRun.objects.get(task_set_id=ts.id)
+        self.assertEqual(gr.status, "fail")
+
+    def test_generate_guard(self):
+        from .stages import run_generate_stage
+
+        ts = create_task_set("守卫测试", recording_id=1)
+        with self.assertRaises(ValueError):
+            run_generate_stage(ts)
+
+
+class PipelineTests(TestCase):
+    def test_pipeline_full_chain_mock(self):
+        from unittest.mock import patch
+
+        from apps.recorder.models import Recording
+
+        demo_script = (
+            'from playwright.sync_api import sync_playwright\n\n\n'
+            'def run(playwright):\n'
+            '    browser = playwright.chromium.launch(headless=False)\n'
+            '    page = browser.new_page()\n'
+            '    page.goto("http://127.0.0.1:8000/api/demo/login/")\n'
+            '    page.get_by_role("textbox", name="请输入用户名").click()\n'
+            '    page.get_by_role("textbox", name="请输入用户名").fill("testadmin")\n'
+            '    page.get_by_role("textbox", name="请输入密码").fill("admin123456")\n'
+            '    page.get_by_role("button", name="登录", exact=True).click()\n'
+            '    page.get_by_text("欢迎回来").click()\n'
+            '    browser.close()\n\n\n'
+            'with sync_playwright() as playwright:\n'
+            '    run(playwright)\n'
+        )
+        rec = Recording.objects.create(
+            name="pipeline-录制", raw_content=demo_script
+        )
+        ts = create_task_set("流水线测试", recording_id=rec.id)
+        ts.status = "replay_done"  # 跳过真实回放（同步建任务的回放由外部负责）
+        ts.save(update_fields=["status", "updated_at"])
+
+        # 让 extract/design/review/generate 全部走 mock
+        gateway_payloads = [
+            {"schema_version": "1.0.0-dev", "source": {"recording_id": "1", "trace_artifact_id": "t"},
+             "pages": [{"id": "p0", "name": "登录页", "url_pattern": "http://127.0.0.1:8000/api/demo/login/"}],
+             "elements": [{"id": "e0", "page_id": "p0", "name": "登录", "role": "button",
+                           "candidates": [{"type": "role", "value": "button", "priority": 0, "robustness": "strong"}],
+                           "exists_in_repo": False}],
+             "actions": [], "params": [], "confidence": 0.9},
+            {"schema_version": "1.0.0-dev", "pom_ref": "p1", "module": "登录",
+             "rows": [{"id": "r0", "name": "正常登录", "method_tags": ["scenario"],
+                       "classification": "separate_flow", "flow": [0], "params": {}}]},
+            {"verdict": "pass", "blocking_issues": [], "suggestions": [], "confidence": 0.9},
+            {"status": "pass", "script_file": "test_login.py", "rounds": 1,
+             "summary": "ok", "script_content": "print('ok')", "output_tail": "1 passed"},
+        ]
+        with patch("apps.tasksets.stages.get_gateway") as mock_gw:
+            # 直接让 gateway 走真实 mock fixtures（复用 AgentGateway mock 模式）
+            from apps.agent_runtime.gateway import AgentGateway
+
+            gw = AgentGateway()
+            gw.mode = "mock"
+            mock_gw.return_value = gw
+
+            from .stages import run_pipeline
+
+            ts = run_pipeline(ts)
+
+        self.assertEqual(ts.status, "generate_done")
+        stages = list(StageJob.objects.filter(task_set=ts).order_by("id").values_list("stage", flat=True))
+        self.assertEqual(stages, ["extract", "design", "review", "generate"])
+        for s in ["extract", "design", "review", "generate"]:
+            job = StageJob.objects.get(task_set=ts, stage=s)
+            self.assertEqual(job.status, "success", f"{s} 应成功")
+
+    def test_pipeline_stops_on_review_fail(self):
+        from unittest.mock import patch
+
+        from apps.agent_runtime.gateway import AgentGateway
+        from .stages import run_pipeline
+
+        ts = create_task_set("流水线失败测试", recording_id=1)
+        ts.status = "replay_done"
+        ts.save(update_fields=["status", "updated_at"])
+
+        gw = AgentGateway()
+        gw.mode = "mock"
+        with patch("apps.tasksets.stages.get_gateway", return_value=gw):
+            # 把 mock review fixture 换成 verdict=changes_needed
+            import json
+            from pathlib import Path
+
+            fixture = Path("apps/agent_runtime/fixtures/mock_review.json")
+            orig = json.loads(fixture.read_text(encoding="utf-8"))
+            fixture.write_text(
+                json.dumps({**orig, "verdict": "changes_needed",
+                            "blocking_issues": ["覆盖不足"]}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            try:
+                ts = run_pipeline(ts)
+            finally:
+                fixture.write_text(json.dumps(orig, ensure_ascii=False), encoding="utf-8")
+
+        self.assertEqual(ts.status, "failed")
+        self.assertNotIn("generate", list(
+            StageJob.objects.filter(task_set=ts).values_list("stage", flat=True)))
+
+
+class ObsCenterApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_overview(self):
+        resp = self.client.get("/api/obs/overview/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        for key in ("invocations", "replays", "stages", "generated"):
+            self.assertIn(key, data)
+
+    def test_activity(self):
+        resp = self.client.get("/api/obs/activity/?limit=10")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("results", resp.json())

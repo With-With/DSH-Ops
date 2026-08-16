@@ -100,6 +100,24 @@ powershell -ExecutionPolicy Bypass -File ..\scripts\smoke_p1.ps1
 7. **P2 冒烟**：`powershell -ExecutionPolicy Bypass -File scripts\smoke_p2.ps1`（mock 全链）；
    真实链路加 `-Real`（会真实调用 DSH，耗时约 1-3 分钟/阶段）。
 
+## 四D、P3 补充说明（A3 评审 / A4 生成自修复 / 一键流水线 / 观测中心）
+
+1. **一键流水线**：`POST /api/tasksets/<id>/pipeline/`（202 异步）顺序执行
+   replay → A1 提取 → A2 设计 → A3 评审 → A4 生成+自修复，任一步失败即停；
+   前端任务集详情页【▶ 一键流水线】按钮 + 五阶段全景步骤条。
+2. **A4 生成闭环**：智能体在独立工作区读 matrix/pom/elements 输入文件，生成 pytest 脚本、
+   用 `venv\Scripts\python.exe -m pytest` 运行、读错自修（≤3 轮）；
+   产物 `GeneratedRun` 含脚本全文，页面可直接查看/复用。
+3. **A3 自动门**：verdict=pass 才放行；否则任务集 failed（评审报告在任务集详情可见）。
+4. **testhub profile 说明**：`dsh plugin` 建自定义 profile 被 DSH workspace 私有包阻塞
+   （npm 双源 404 `@deepseek-ai/dsh-code-runtime-worker`）。
+   **平台实际使用隔离 home（agent/home）的 headless profile**，能力等价；
+   凭据已复制为 `agent/home/.credentials.yaml`（隔离部署请自行配置该文件）。
+5. **观测中心**：`/api/obs/overview/`（调用/回放/阶段/生成统计）+
+   `/api/obs/activity/`（活动流）；前端「观测中心」页（统计卡 + CSS 分布图 + 活动表）。
+6. **P3 冒烟**：`powershell -ExecutionPolicy Bypass -File scripts\smoke_p3.ps1`（mock，
+   秒级）；真实链路 `-Real`（全链约 6-10 分钟，A4 阶段含真实浏览器生成运行）。
+
 ## 五、常见问题
 
 1. **检测不到运行时**：确认 `agent/runtime/node_modules/.bin/dsh.cmd` 存在（没跑过 install_all），

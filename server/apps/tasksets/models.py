@@ -22,6 +22,10 @@ class TaskSet(BaseModel):
         ("extract_done", "抽取完成"),
         ("designing", "设计中"),
         ("design_done", "设计完成"),
+        ("reviewing", "评审中"),
+        ("review_done", "评审通过"),
+        ("generating", "生成中"),
+        ("generate_done", "生成完成"),
         ("failed", "失败"),
     ]
 
@@ -62,6 +66,7 @@ class StageJob(BaseModel):
         ("replay", "回放"),
         ("extract", "抽取"),
         ("design", "设计"),
+        ("review", "评审"),
         ("generate", "生成"),
     ]
 
@@ -109,3 +114,46 @@ class StageJob(BaseModel):
 
     def __str__(self):
         return f"StageJob {self.stage} [{self.status}] (task_set={self.task_set_id})"
+
+
+class GeneratedRun(BaseModel):
+    """A4/A5 生成产物：DSH 生成的测试脚本与运行报告。
+
+    script_content 冗余保存脚本全文（工作区文件可清理后仍可查看/复用）。
+    """
+
+    STATUS_CHOICES = [
+        ("pass", "通过"),
+        ("fail", "失败"),
+    ]
+
+    task_set_id = models.IntegerField("任务集 ID", db_index=True)
+    stage_job = models.ForeignKey(
+        StageJob,
+        verbose_name="所属阶段作业",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="generated_runs",
+    )
+    invocation_id = models.IntegerField("关联调用 ID", null=True, blank=True, db_index=True)
+    script_file = models.CharField("脚本文件名", max_length=256, blank=True, default="")
+    script_content = models.TextField("脚本全文", blank=True, default="")
+    report = models.JSONField("运行报告", default=dict, blank=True)
+    status = models.CharField(
+        "状态", max_length=16, choices=STATUS_CHOICES, default="fail", db_index=True
+    )
+    rounds = models.IntegerField("自修复轮数", default=0)
+    duration_ms = models.IntegerField("耗时(ms)", default=0)
+
+    class Meta:
+        db_table = "taskset_generated_runs"
+        verbose_name = "生成运行"
+        verbose_name_plural = verbose_name
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["task_set_id", "status"]),
+        ]
+
+    def __str__(self):
+        return f"GeneratedRun #{self.id} {self.script_file} [{self.status}]"

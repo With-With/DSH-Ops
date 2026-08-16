@@ -36,7 +36,11 @@ allowed_transitions: dict[str, set[str]] = {
     "extracting": {"extract_done", "failed"},
     "extract_done": {"designing", "failed"},
     "designing": {"design_done", "failed"},
-    "design_done": {"failed"},
+    "design_done": {"reviewing", "failed"},
+    "reviewing": {"review_done", "failed"},
+    "review_done": {"generating", "failed"},
+    "generating": {"generate_done", "failed"},
+    "generate_done": {"failed"},
     "failed": {"extracting"},  # 失败后可重入抽取阶段（重试路径）
 }
 

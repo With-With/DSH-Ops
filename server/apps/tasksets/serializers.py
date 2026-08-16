@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import StageJob, TaskSet
+from .models import GeneratedRun, StageJob, TaskSet
 
 
 class StageJobSerializer(serializers.ModelSerializer):
@@ -19,11 +19,31 @@ class StageJobSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class GeneratedRunSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GeneratedRun
+        fields = [
+            "id",
+            "task_set_id",
+            "stage_job",
+            "invocation_id",
+            "script_file",
+            "script_content",
+            "report",
+            "status",
+            "rounds",
+            "duration_ms",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+
 class TaskSetSerializer(serializers.ModelSerializer):
     """列表/详情通用序列化器。详情时带嵌套 stage_jobs 与 drafts。"""
 
     stage_jobs = StageJobSerializer(many=True, read_only=True)
     drafts = serializers.SerializerMethodField()
+    generated = serializers.SerializerMethodField()
 
     class Meta:
         model = TaskSet
@@ -39,6 +59,7 @@ class TaskSetSerializer(serializers.ModelSerializer):
             "updated_at",
             "stage_jobs",
             "drafts",
+            "generated",
         ]
         read_only_fields = [
             "id",
@@ -50,6 +71,7 @@ class TaskSetSerializer(serializers.ModelSerializer):
             "updated_at",
             "stage_jobs",
             "drafts",
+            "generated",
         ]
 
     def get_drafts(self, obj) -> list:
@@ -66,6 +88,22 @@ class TaskSetSerializer(serializers.ModelSerializer):
             )
         except Exception:
             return []
+
+    def get_generated(self, obj) -> list:
+        """本任务集的生成产物（含脚本全文，供页面查看/复用）。"""
+        return list(
+            GeneratedRun.objects.filter(task_set_id=obj.id)
+            .order_by("-created_at")
+            .values(
+                "id",
+                "script_file",
+                "script_content",
+                "status",
+                "rounds",
+                "duration_ms",
+                "created_at",
+            )
+        )
 
 
 class TaskSetCreateSerializer(serializers.ModelSerializer):

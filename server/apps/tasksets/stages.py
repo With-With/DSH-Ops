@@ -22,7 +22,7 @@ from django.conf import settings
 from django.db import connections
 from django.utils import timezone
 
-from .models import StageJob, TaskSet
+from .models import GeneratedRun, StageJob, TaskSet
 from .services import _transition
 
 if TYPE_CHECKING:
@@ -222,7 +222,155 @@ def build_a2_instruction(recording, pom_content: dict) -> str:
         f"{schema}\n"
         "```\n\n"
         "只输出一个 ```json 围栏，符合 schema，输出测试用例矩阵草案，"
-        "含正常路径与至少一条异常路径。\n"
+        "含正常路径与至少一条异常路径。\n\n"
+        "## 质量要求（A3 评审自动门会逐条核验，不满足将被驳回）\n\n"
+        "1. **flow 必须是动作索引数组（int[]）**，引用 pom.json actions 的 index；"
+        "禁止自由文本描述（如“刷新当前页面“），POM 没有的动作不要写进 flow。\n"
+        "2. **每个异常场景的参数必须独立命名**：如“错误密码”场景用新参数 "
+        "wrong_password（在 params 中给出具体值），禁止复用/引用正确值的 secret（"
+        "${secret:password} 表示正确密码，与错误场景意图矛盾）。\n"
+        "3. **assertion_hints 必须可执行且与期望一致**：期望“登录成功”就断言成功文案；"
+        "期望“失败提示”就断言失败文案；一数据行只对应一个分支，不要一个断言集合覆盖"
+        "互相矛盾的两条分支。\n"
+        "4. **url_changed 断言必须给出期望目标 URL**（相对路径即可）。\n"
+        "5. **每行都至少有一条明确可执行的断言**；若期望“不发起请求”（客户端校验），"
+        "断言要落在“错误提示可见且页面未跳转”，不要写网络层无法验证的断言。\n"
+        "6. **避免账号锁定污染**：连续失败锁定类场景（如 6 次错误密码）要么设计数据隔离，"
+        "要么 needs_mock=true 并说明 mock 方式；不要把锁定状态带入依赖同一账号的后继用例。\n"
+        "7. **跳转后页面**：若动作进入新页面，确认该页面在 pom.json 的 pages 中定义，"
+        "否则相关断言无法判定。\n"
+        "8. **场景范围**：优先设计页面元素**实际能表达**的用例（正常路径、字段为空、"
+        "错误凭据等，错误提示文案以页面实际文案为准）；网络层异常（断网/超时/500/响应缓慢）"
+        "可设计但必须 needs_mock=true 并说明 mock 方式。除非 POM 有对应元素，否则不要设计"
+        "账号锁定/验证码/XSS 弹出等页面不支持的场景。\n"
+        "9. **params 键名必须与 POM actions 的 param_ref 完全一致**（如 username/password），"
+        "不同值用同键（如 password 填错误值即可），不要自创键名。\n"
+        "10. **断言文案精确匹配**：断言文本必须来自页面实际可见文案（错误提示 div 的"
+        "文本如「请输入用户名」「用户名或密码错误」）；输入框占位符不是错误提示，"
+        "不能作为失败断言；失败用例断言要落在具体错误文案可见。\n"
+        "11. **覆盖均衡**：正常路径 + 关键异常路径（空字段/错误凭据）必须有；"
+        "等价类与边界（如双空、超长输入）适度补充，3~8 行为宜。\n"
+    )
+
+
+def _load_tester_pro_md() -> str:
+    """读 tester_pro.md（A3 评审员人设），缺失则用最小 fallback。"""
+    content = _read_text_file(_repo_path("agent/skills/tester_pro.md"))
+    if content:
+        return content
+    return (
+        "# 角色：测试用例评审专家（A3）\n\n"
+        "你是一位资深的测试设计评审员，负责对场景矩阵做质量门禁审查，"
+        "找出覆盖缺口、断言缺失与数据设计问题。\n"
+    )
+
+
+def build_a3_instruction(matrix_draft: dict, pom_draft: dict) -> str:
+    """构建 A3 评审阶段的完整指令。
+
+    组成：tester_pro.md 人设 + matrix 草案 + POM 摘要 + 输出要求。
+    输出契约：{verdict: pass|changes_needed, blocking_issues: [...],
+    suggestions: [...], confidence: 0-1}
+    """
+    persona = _load_tester_pro_md()
+    matrix_json = json.dumps(matrix_draft, ensure_ascii=False, indent=2)
+    pom_json = json.dumps(pom_draft, ensure_ascii=False, indent=2)
+
+    return (
+        f"{persona}\n\n"
+        f"## 任务\n\n"
+        "请对以下测试用例矩阵草案做质量门禁评审（自动门）：\n"
+        "- 检查场景是否覆盖正常路径与关键异常路径\n"
+        "- 检查断言是否明确可执行\n"
+        "- 检查参数化（param_ref）与 secret 标记是否正确\n"
+        "- 找出阻塞性问题（覆盖缺口/断言缺失/数据错误）与非阻塞建议\n\n"
+        "## POM 草案（评审参考）\n\n"
+        "```json\n"
+        f"{pom_json}\n"
+        "```\n\n"
+        "## 场景矩阵草案\n\n"
+        "```json\n"
+        f"{matrix_json}\n"
+        "```\n\n"
+        "## 输出要求\n\n"
+        "只输出一个 ```json 围栏：\n"
+        "{\n"
+        '  "verdict": "pass" | "changes_needed",\n'
+        '  "blocking_issues": ["覆盖缺口描述", ...],\n'
+        '  "suggestions": ["非阻塞建议", ...],\n'
+        '  "confidence": 0.0-1.0\n'
+        "}\n"
+        "不要任何其他文字。\n"
+    )
+
+
+def build_a4_instruction(matrix_draft: dict, pom_draft: dict) -> str:
+    """构建 A4 生成阶段的完整指令。
+
+    A4 是 DSH 的核心价值点：一个会话内闭环（生成->跑->读错->修，≤3 轮）。
+    输入文件已由阶段服务写入工作区（matrix.json / pom.json / elements.json）：
+     - 读取工作区根目录的 matrix.json、pom.json、elements.json
+     - 生成 pytest 脚本 test_<module>.py（playwright sync API + expect 断言）
+     - 用 `<repo>\venv\Scripts\python.exe -m pytest 脚本 -q` 运行
+     - 失败则读错误修脚本，最多 3 轮
+    输出契约：{status: pass|fail, script_file, rounds, summary, script_content, output_tail}
+    """
+    import sys as _sys
+
+    py_exec = str(
+        Path(settings.DSHOPS_REPO_ROOT) / "venv" / "Scripts" / "python.exe"
+    )
+    if _sys.platform != "win32":
+        py_exec = "python3"
+    matrix_json = json.dumps(matrix_draft, ensure_ascii=False, indent=2)
+
+    return (
+        "## 任务：生成并跑通 UI 测试脚本（会话内自修复闭环）\n\n"
+        "工作区根目录已有三个输入文件：\n"
+        "- `matrix.json`：场景矩阵（你要实现的用例）\n"
+        "- `pom.json`：页面对象模型（元素与定位器）\n"
+        "- `elements.json`：元素仓摘要（搜索优先复用）\n\n"
+        "步骤：\n"
+        "1. 读三个输入文件，理解页面结构（目标页可能需先启动：\n"
+        "   若浏览器打不开 127.0.0.1:8000，先说明需先起后端服务）\n"
+        "2. 生成 pytest 脚本 `test_<模块名>.py`，用 playwright sync API +\n"
+        "   `from playwright.sync_api import sync_playwright, expect`，\n"
+        "   按 matrix 的 rows 组织用例，参数化数据用 @pytest.mark.parametrize；\n"
+        "   **浏览器启动必须用**：`p.chromium.launch(channel=\"chromium\", headless=True, "
+        "args=[\"--ignore-certificate-errors\", \"--disable-blink-features=AutomationControlled\"])`\n"
+        "   （用完整 chromium 新无头模式，不要用默认 headless-shell；"
+        "若 chromium 通道不可用则改 channel=\"msedge\"；不要执行 playwright install 下载浏览器）\n"
+        f"3. 用以下命令运行（headless）：\n"
+        f"   `{py_exec} -m pytest test_<模块名>.py -q`\n"
+        "4. 若失败：读报错→修脚本→重跑，最多 3 轮\n"
+        "5. 完成后再把脚本内容与运行输出整理进最终 JSON\n\n"
+        "## matrix.json 内容（供参考）\n\n"
+        "```json\n"
+        f"{matrix_json}\n"
+        "```\n\n"
+        "## 输出要求\n\n"
+        "只输出一个 ```json 围栏：\n"
+        "{\n"
+        '  "status": "pass" | "fail",\n'
+        '  "script_file": "test_xxx.py",\n'
+        '  "rounds": 1-3,\n'
+        '  "summary": "做了什么/修了什么",\n'
+        '  "script_content": "脚本全文（转义为字符串）",\n'
+        '  "output_tail": "pytest 输出末尾 200 字符"\n'
+        "}\n"
+        "不要任何其他文字。\n"
+    )
+
+
+def build_elements_summary(pom_draft: dict) -> str:
+    """从 POM 草案生成元素仓摘要 JSON（A4 的 elements.json 输入）。"""
+    return json.dumps(
+        {
+            "pages": pom_draft.get("pages", []),
+            "elements": pom_draft.get("elements", []),
+        },
+        ensure_ascii=False,
+        indent=2,
     )
 
 
@@ -658,6 +806,8 @@ _STAGE_SPECS = {
         "job_stage": "design",
     },
 }
+# NOTE: review/generate 条目在文件后部（run_review_stage/run_generate_stage 定义之后）再并入，
+# 避免模块导入期的前向引用错误。
 
 
 def run_stage_async(task_set: TaskSet, stage: str) -> TaskSet:
@@ -722,4 +872,402 @@ def run_stage_async(task_set: TaskSet, stage: str) -> TaskSet:
             connections.close_all()
 
     threading.Thread(target=_worker, daemon=True, name=f"taskset-stage-{stage}-{ts_pk}").start()
+    return task_set
+
+
+# ---------------------------------------------------------------------------
+# A3 评审阶段
+# ---------------------------------------------------------------------------
+
+def run_review_stage(task_set: TaskSet, job: StageJob | None = None) -> TaskSet:
+    """执行 A3 评审阶段（自动门）。
+
+    守卫：仅 design_done 可进入。
+    verdict=pass -> review_done；否则 -> failed（评审报告留档供人工处理）。
+    """
+    if job is None:
+        if task_set.status != "design_done":
+            raise ValueError(
+                f"cannot run review stage from status {task_set.status!r}"
+            )
+        _transition(task_set, "reviewing")
+        task_set.current_stage = "review"
+        task_set.save(update_fields=["current_stage", "updated_at"])
+        job = StageJob.objects.create(
+            task_set=task_set,
+            stage="review",
+            status="running",
+            started_at=timezone.now(),
+        )
+
+    try:
+        # ---- 取 matrix 与 pom 草案 ------------------------------------------
+        try:
+            from apps.agent_runtime.models import ArtifactDraft  # type: ignore
+
+            matrix_draft = (
+                ArtifactDraft.objects.filter(
+                    task_set_id=task_set.id, kind="matrix", valid=True
+                )
+                .order_by("-created_at")
+                .first()
+            )
+            pom_draft = (
+                ArtifactDraft.objects.filter(
+                    task_set_id=task_set.id, kind="pom", valid=True
+                )
+                .order_by("-created_at")
+                .first()
+            )
+        except Exception as exc:
+            raise RuntimeError(f"cannot load drafts: {exc}")
+
+        if matrix_draft is None:
+            raise RuntimeError("no valid matrix draft found for review stage")
+        if pom_draft is None:
+            raise RuntimeError("no valid pom draft found for review stage")
+
+        instruction = build_a3_instruction(matrix_draft.content, pom_draft.content)
+        gateway = get_gateway()
+        invocation = gateway.run_stage(
+            "a3_review",
+            instruction,
+            task_set_id=task_set.id,
+            recording_id=task_set.recording_id,
+        )
+
+        if invocation.status != "success" or invocation.parsed_json is None:
+            error_msg = (
+                invocation.error
+                or f"gateway status={invocation.status}, parsed_json=None"
+            )
+            job.status = "failed"
+            job.finished_at = timezone.now()
+            job.detail = {
+                "error": error_msg,
+                "invocation_id": getattr(invocation, "id", None),
+                "duration_ms": getattr(invocation, "duration_ms", None),
+            }
+            job.save(update_fields=["status", "finished_at", "detail", "updated_at"])
+            _transition(task_set, "failed", error=error_msg)
+            task_set.current_stage = ""
+            task_set.save(update_fields=["current_stage", "updated_at"])
+            return task_set
+
+        report = invocation.parsed_json
+        verdict = str(report.get("verdict", "changes_needed"))
+
+        # 评审报告存 ArtifactDraft（kind=review），自动门判定
+        try:
+            from apps.agent_runtime.models import ArtifactDraft  # type: ignore
+
+            draft = ArtifactDraft.objects.create(
+                task_set_id=task_set.id,
+                kind="review",
+                content=report,
+                schema_version=str(report.get("schema_version", "1.0.0-dev")),
+                valid=True,
+                invocation_id=getattr(invocation, "id", None),
+                status="draft",
+            )
+        except Exception:
+            draft = None
+
+        job.finished_at = timezone.now()
+        job.external_ref = f"invocation:{getattr(invocation, 'id', '')}"
+        job.detail = {
+            "verdict": verdict,
+            "blocking_issues": report.get("blocking_issues", []),
+            "suggestions": report.get("suggestions", []),
+            "confidence": report.get("confidence"),
+            "duration_ms": getattr(invocation, "duration_ms", None),
+            "invocation_id": getattr(invocation, "id", None),
+            "artifact_draft_id": getattr(draft, "id", None),
+        }
+
+        # 自动门：verdict=pass 放行；DSHOPS_REVIEW_AUTO_PASS=1 时 changes_needed 也放行
+        # （阻塞问题仍留档在 review 报告里，供人工事后核对；默认严格模式）
+        auto_pass = os.environ.get("DSHOPS_REVIEW_AUTO_PASS", "") == "1"
+        if verdict == "pass" or auto_pass:
+            if auto_pass and verdict != "pass":
+                job.detail = {**job.detail, "auto_pass": True,
+                              "auto_pass_note": "DSHOPS_REVIEW_AUTO_PASS=1 放行（问题留档）"}
+            job.status = "success"
+            job.save(
+                update_fields=["status", "finished_at", "detail", "external_ref", "updated_at"]
+            )
+            _transition(task_set, "review_done")
+            task_set.current_stage = ""
+            task_set.save(update_fields=["current_stage", "updated_at"])
+        else:
+            job.status = "failed"
+            job.save(
+                update_fields=["status", "finished_at", "detail", "external_ref", "updated_at"]
+            )
+            issues = report.get("blocking_issues", [])
+            _transition(
+                task_set,
+                "failed",
+                error=f"A3 评审未通过: {'; '.join(issues) if issues else 'verdict != pass'}",
+            )
+            task_set.current_stage = ""
+            task_set.save(update_fields=["current_stage", "updated_at"])
+
+    except Exception as exc:  # noqa: BLE001
+        job.status = "failed"
+        job.finished_at = timezone.now()
+        job.detail = {"error": str(exc), "stage": "review"}
+        job.save(update_fields=["status", "finished_at", "detail", "updated_at"])
+        task_set.error = str(exc)
+        _transition(task_set, "failed", error=str(exc))
+        task_set.current_stage = ""
+        task_set.save(update_fields=["current_stage", "updated_at"])
+
+    return task_set
+
+
+# ---------------------------------------------------------------------------
+# A4/A5 生成+自修复阶段（一个 DSH 会话内闭环）
+# ---------------------------------------------------------------------------
+
+def _last_valid_draft(task_set_id: int, kind: str):
+    from apps.agent_runtime.models import ArtifactDraft  # type: ignore
+
+    return (
+        ArtifactDraft.objects.filter(task_set_id=task_set_id, kind=kind, valid=True)
+        .order_by("-created_at")
+        .first()
+    )
+
+
+def run_generate_stage(task_set: TaskSet, job: StageJob | None = None) -> TaskSet:
+    """执行 A4/A5 生成+自修复阶段。
+
+    守卫：仅 review_done 可进入。
+    输入：matrix/pom 草案 + 元素仓摘要 注入工作区（input_files）；
+    智能体在会话内生成脚本、运行、读错、自修（≤3 轮）；
+    成功 -> generate_done + GeneratedRun(pass)；失败 -> failed + GeneratedRun(fail)。
+    """
+    if job is None:
+        if task_set.status != "review_done":
+            raise ValueError(
+                f"cannot run generate stage from status {task_set.status!r}"
+            )
+        _transition(task_set, "generating")
+        task_set.current_stage = "generate"
+        task_set.save(update_fields=["current_stage", "updated_at"])
+        job = StageJob.objects.create(
+            task_set=task_set,
+            stage="generate",
+            status="running",
+            started_at=timezone.now(),
+        )
+
+    generated = None
+    try:
+        matrix_draft = _last_valid_draft(task_set.id, "matrix")
+        pom_draft = _last_valid_draft(task_set.id, "pom")
+        if matrix_draft is None:
+            raise RuntimeError("no valid matrix draft for generate stage")
+        if pom_draft is None:
+            raise RuntimeError("no valid pom draft for generate stage")
+
+        instruction = build_a4_instruction(matrix_draft.content, pom_draft.content)
+        input_files = {
+            "matrix.json": json.dumps(matrix_draft.content, ensure_ascii=False, indent=2),
+            "pom.json": json.dumps(pom_draft.content, ensure_ascii=False, indent=2),
+            "elements.json": build_elements_summary(pom_draft.content),
+        }
+        gateway = get_gateway()
+        invocation = gateway.run_stage(
+            "a4_generate",
+            instruction,
+            task_set_id=task_set.id,
+            recording_id=task_set.recording_id,
+            input_files=input_files,
+            timeout=600,  # A4 含生成+运行+自修（≤3 轮），放宽超时
+        )
+
+        if invocation.status != "success" or invocation.parsed_json is None:
+            error_msg = (
+                invocation.error
+                or f"gateway status={invocation.status}, parsed_json=None"
+            )
+            job.status = "failed"
+            job.finished_at = timezone.now()
+            job.detail = {"error": error_msg, "invocation_id": getattr(invocation, "id", None)}
+            job.save(update_fields=["status", "finished_at", "detail", "updated_at"])
+            _transition(task_set, "failed", error=error_msg)
+            task_set.current_stage = ""
+            task_set.save(update_fields=["current_stage", "updated_at"])
+            return task_set
+
+        report = invocation.parsed_json
+        status_ok = report.get("status") == "pass"
+        script_file = str(report.get("script_file", ""))
+        script_content = str(report.get("script_content", ""))
+        rounds = int(report.get("rounds", 0) or 0)
+
+        # 脚本兜底：报告没带全文时尝试从工作区读取
+        if not script_content and invocation.workspace_path:
+            ws = Path(invocation.workspace_path)
+            if script_file and (ws / script_file).exists():
+                script_content = (ws / script_file).read_text(encoding="utf-8")
+
+        generated = GeneratedRun.objects.create(
+            task_set_id=task_set.id,
+            stage_job=job,
+            invocation_id=getattr(invocation, "id", None),
+            script_file=script_file,
+            script_content=script_content,
+            report=report,
+            status="pass" if status_ok else "fail",
+            rounds=rounds,
+            duration_ms=getattr(invocation, "duration_ms", 0),
+        )
+
+        job.finished_at = timezone.now()
+        job.external_ref = f"invocation:{getattr(invocation, 'id', '')}"
+        job.detail = {
+            "status": "pass" if status_ok else "fail",
+            "script_file": script_file,
+            "rounds": rounds,
+            "summary": report.get("summary", ""),
+            "output_tail": report.get("output_tail", ""),
+            "duration_ms": getattr(invocation, "duration_ms", None),
+            "generated_run_id": generated.id,
+            "invocation_id": getattr(invocation, "id", None),
+        }
+
+        if status_ok:
+            job.status = "success"
+            job.save(
+                update_fields=["status", "finished_at", "detail", "external_ref", "updated_at"]
+            )
+            _transition(task_set, "generate_done")
+            task_set.current_stage = ""
+            task_set.save(update_fields=["current_stage", "updated_at"])
+        else:
+            job.status = "failed"
+            job.save(
+                update_fields=["status", "finished_at", "detail", "external_ref", "updated_at"]
+            )
+            _transition(
+                task_set,
+                "failed",
+                error=f"A4 生成未跑通（{rounds} 轮自修复后仍失败）: {report.get('summary', '')}",
+            )
+            task_set.current_stage = ""
+            task_set.save(update_fields=["current_stage", "updated_at"])
+
+    except Exception as exc:  # noqa: BLE001
+        job.status = "failed"
+        job.finished_at = timezone.now()
+        job.detail = {"error": str(exc), "stage": "generate"}
+        job.save(update_fields=["status", "finished_at", "detail", "updated_at"])
+        task_set.error = str(exc)
+        _transition(task_set, "failed", error=str(exc))
+        task_set.current_stage = ""
+        task_set.save(update_fields=["current_stage", "updated_at"])
+
+    return task_set
+
+
+# ---------------------------------------------------------------------------
+# 流水线一键（replay -> extract -> design -> review -> generate）
+# ---------------------------------------------------------------------------
+
+# 阶段规格表：在全部阶段函数定义后补全（模块导入期无前向引用问题）
+_STAGE_SPECS["review"] = {
+    "fn": run_review_stage,
+    "allowed": ("design_done",),
+    "running": "reviewing",
+    "current": "review",
+    "job_stage": "review",
+}
+_STAGE_SPECS["generate"] = {
+    "fn": run_generate_stage,
+    "allowed": ("review_done",),
+    "running": "generating",
+    "current": "generate",
+    "job_stage": "generate",
+}
+
+
+def run_pipeline(task_set: TaskSet) -> TaskSet:
+    """按顺序执行完整流水线，任一步失败即停（StageJob 留痕）。
+
+    幂等：已在 replay_done 之后的状态会跳过已完成阶段。
+    """
+    from .services import run_replay_stage  # type: ignore
+
+    # 1. replay（若未完成）
+    if task_set.status == "created":
+        task_set = run_replay_stage(task_set)
+        if task_set.status == "failed":
+            return task_set
+
+    # 2. extract
+    if task_set.status in ("replay_done", "failed"):
+        task_set = run_extract_stage(task_set)
+        if task_set.status != "extract_done":
+            return task_set
+
+    # 3. design
+    if task_set.status == "extract_done":
+        task_set = run_design_stage(task_set)
+        if task_set.status != "design_done":
+            return task_set
+
+    # 4. review
+    if task_set.status == "design_done":
+        task_set = run_review_stage(task_set)
+        if task_set.status != "review_done":
+            return task_set
+
+    # 5. generate
+    if task_set.status == "review_done":
+        task_set = run_generate_stage(task_set)
+
+    return task_set
+
+
+def run_pipeline_async(task_set: TaskSet) -> TaskSet:
+    """流水线一键（异步）：整条链在一个后台线程顺序执行。
+
+    守卫失败/进行中抛 ValueError（409）。
+    """
+    if task_set.status not in ("created", "replay_done", "extract_done",
+                               "design_done", "review_done", "failed"):
+        raise ValueError(f"cannot run pipeline from status {task_set.status!r}")
+
+    lock = _stage_lock(task_set.id)
+    if not lock.acquire(blocking=False):
+        raise ValueError(f"任务集 #{task_set.id} 已有阶段/流水线正在执行中")
+
+    ts_pk = task_set.pk
+
+    def _worker():
+        try:
+            from apps.tasksets.models import TaskSet as _TaskSet
+
+            ts = _TaskSet.objects.get(pk=ts_pk)
+            run_pipeline(ts)
+        except Exception:  # run_pipeline 内部已兜底
+            try:
+                from apps.tasksets.models import TaskSet as _TaskSet
+
+                ts = _TaskSet.objects.get(pk=ts_pk)
+                ts.status = "failed"
+                ts.error = "uncaught in pipeline worker"
+                ts.save(update_fields=["status", "error", "updated_at"])
+            except Exception:
+                pass
+        finally:
+            lock.release()
+            connections.close_all()
+
+    threading.Thread(
+        target=_worker, daemon=True, name=f"taskset-pipeline-{ts_pk}"
+    ).start()
     return task_set

@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0.0-dev",
+  "status": "pass",
+  "script_file": "test_login.py",
+  "rounds": 2,
+  "summary": "基于 matrix 生成登录用例脚本，首轮运行定位到欢迎文本断言时机问题，第二轮修复后全部通过。",
+  "script_content": "# 生成：DSH-Ops A4 阶段（mock fixture 演示）\n# 目标：演示登录页 http://127.0.0.1:8000/api/demo/login/\nimport re\nimport pytest\nfrom playwright.sync_api import sync_playwright, expect\n\nUSERNAME = \"testadmin\"\nPASSWORD = \"admin123456\"\nLOGIN_URL = \"http://127.0.0.1:8000/api/demo/login/\"\n\n\n@pytest.fixture(scope=\"module\")\ndef browser_page():\n    with sync_playwright() as p:\n        browser = p.chromium.launch(headless=True, args=[\"--ignore-certificate-errors\"])\n        page = browser.new_page()\n        yield page\n        browser.close()\n\n\ndef test_login_success(browser_page):\n    \"\"\"正常路径：正确凭据登录成功，出现欢迎回来文本。\"\"\"\n    page = browser_page\n    page.goto(LOGIN_URL)\n    page.get_by_role(\"textbox\", name=\"请输入用户名\").fill(USERNAME)\n    page.get_by_role(\"textbox\", name=\"请输入密码\").fill(PASSWORD)\n    page.get_by_role(\"button\", name=\"登录\", exact=True).click()\n    expect(page.get_by_text(\"欢迎回来\")).to_be_visible(timeout=5000)\n\n\ndef test_login_blank_username(browser_page):\n    \"\"\"异常路径：用户名为空时登录应被拒绝（页面提示校验）。\"\"\"\n    page = browser_page\n    page.goto(LOGIN_URL)\n    page.get_by_role(\"textbox\", name=\"请输入密码\").fill(PASSWORD)\n    page.get_by_role(\"button\", name=\"登录\", exact=True).click()\n    expect(page.get_by_text(\"欢迎回来\")).to_have_count(0)\n",
+  "output_tail": "2 passed in 3.21s"
+}

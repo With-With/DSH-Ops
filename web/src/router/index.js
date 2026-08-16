@@ -40,8 +40,14 @@ const routes = [
       {
         path: 'reviews',
         name: 'Reviews',
-        component: () => import('@/views/placeholders/P2.vue'),
-        meta: { title: '评审收件箱', icon: 'Message', phase: 'P2' },
+        component: () => import('@/views/reviews/index.vue'),
+        meta: { title: '评审中心', icon: 'Message' },
+      },
+      {
+        path: 'obs',
+        name: 'Obs',
+        component: () => import('@/views/obs/index.vue'),
+        meta: { title: '观测中心', icon: 'DataLine' },
       },
       {
         path: 'ai-config',

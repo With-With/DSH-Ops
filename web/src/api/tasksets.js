@@ -50,3 +50,17 @@ export function runStage(id, stage) {
     timeout: 30000,
   })
 }
+
+/**
+ * 一键流水线（异步）
+ * POST /tasksets/<id>/pipeline/ {}
+ * 返回 202 Accepted；前端轮询详情至 generate_done/failed
+ */
+export function runPipeline(id) {
+  return request({
+    url: `/tasksets/${id}/pipeline/`,
+    method: 'post',
+    data: {},
+    timeout: 30000,
+  })
+}

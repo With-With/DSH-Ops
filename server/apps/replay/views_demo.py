@@ -66,6 +66,16 @@ DEMO_LOGIN_HTML = """<!DOCTYPE html>
             border-radius: 4px;
             display: none;
         }
+        #error-msg {
+            margin-top: 12px;
+            padding: 10px 12px;
+            text-align: center;
+            color: #f56c6c;
+            background: #fef0f0;
+            border-radius: 4px;
+            display: none;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
@@ -93,17 +103,35 @@ DEMO_LOGIN_HTML = """<!DOCTYPE html>
             </div>
             <button type="submit" role="button" class="login-btn">登录</button>
         </form>
+        <div id="error-msg"></div>
         <div id="welcome"></div>
     </div>
     <script>
         function handleLogin(event) {
             event.preventDefault();
             var username = document.getElementById('username').value;
+            var password = document.getElementById('password').value;
             var welcomeEl = document.getElementById('welcome');
-            if (username && username.trim()) {
-                welcomeEl.textContent = '欢迎回来，' + username;
-                welcomeEl.style.display = 'block';
+            var errorEl = document.getElementById('error-msg');
+            welcomeEl.style.display = 'none';
+            errorEl.style.display = 'none';
+            if (!username || !username.trim()) {
+                errorEl.textContent = '请输入用户名';
+                errorEl.style.display = 'block';
+                return false;
             }
+            if (!password) {
+                errorEl.textContent = '请输入密码';
+                errorEl.style.display = 'block';
+                return false;
+            }
+            if (password !== 'admin123456') {
+                errorEl.textContent = '用户名或密码错误';
+                errorEl.style.display = 'block';
+                return false;
+            }
+            welcomeEl.textContent = '欢迎回来，' + username;
+            welcomeEl.style.display = 'block';
             return false;
         }
     </script>

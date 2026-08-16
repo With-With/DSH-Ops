@@ -14,4 +14,5 @@ urlpatterns = [
     path("api/", include("apps.testdata.urls")),
     path("api/", include("apps.agent_runtime.urls")),
     path("api/", include("apps.reviews.urls")),
+    path("api/", include("apps.obs_center.urls")),
 ]

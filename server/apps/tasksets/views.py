@@ -73,3 +73,24 @@ class TaskSetViewSet(viewsets.ReadOnlyModelViewSet):
 
         out = TaskSetSerializer(instance=task_set)
         return Response(out.data, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=["post"], url_path="pipeline")
+    def run_pipeline(self, request, pk=None):
+        """POST /api/tasksets/<id>/pipeline/ — 一键流水线（异步）。
+
+        replay -> extract -> design -> review -> generate 顺序执行，
+        任一步失败即停（StageJob 留痕）。202 后前端轮询详情。
+        """
+        from .stages import run_pipeline_async
+
+        task_set = self.get_object()
+        try:
+            task_set = run_pipeline_async(task_set)
+        except ValueError as exc:
+            return Response(
+                {"detail": str(exc), "status": task_set.status},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        out = TaskSetSerializer(instance=task_set)
+        return Response(out.data, status=status.HTTP_202_ACCEPTED)

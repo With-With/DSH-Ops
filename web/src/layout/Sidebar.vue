@@ -56,7 +56,8 @@ const menuItems = [
   { path: '/replay', title: '回放中心', icon: 'VideoPlay' },
   { path: '/assets', title: '元素仓', icon: 'Picture' },
   { path: '/tasksets', title: '任务集', icon: 'Collection' },
-  { path: '/reviews', title: '评审收件箱', icon: 'Message', phase: 'P2' },
+  { path: '/reviews', title: '评审中心', icon: 'Message' },
+  { path: '/obs', title: '观测中心', icon: 'DataLine' },
   { path: '/ai-config', title: 'AI 配置', icon: 'MagicStick', phase: 'P3' },
 ]
 
