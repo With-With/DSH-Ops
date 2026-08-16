@@ -138,12 +138,6 @@
 
             <el-table-column type="selection" width="50" align="center" />
             <el-table-column prop="name" label="名称" min-width="180" show-overflow-tooltip />
-            <el-table-column prop="language" label="语言" width="100" align="center">
-              <template #default="{ row }">
-                <el-tag v-if="row.language" size="small" effect="plain">{{ row.language }}</el-tag>
-                <span v-else class="empty-tip">—</span>
-              </template>
-            </el-table-column>
             <el-table-column prop="start_url" label="起始 URL" min-width="220" show-overflow-tooltip />
             <el-table-column prop="locators_count" label="定位器数" width="100" align="center" />
             <el-table-column prop="actions_count" label="动作数" width="90" align="center" />
