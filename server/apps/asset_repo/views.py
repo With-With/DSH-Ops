@@ -63,6 +63,28 @@ class ElementViewSet(viewsets.ModelViewSet):
         instance.delete()  # 软删除
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @action(detail=False, methods=["post"], url_path="bulk-delete")
+    def bulk_delete(self, request):
+        """POST /api/assets/elements/bulk-delete/ {ids: [1,2]} - 软删多条元素（P4）。"""
+        from apps.core.models import AuditLog
+
+        ids = (request.data or {}).get("ids") or []
+        if not isinstance(ids, list) or not ids:
+            return Response(
+                {"detail": "ids 必须是非空数组"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        qs = self.get_queryset().filter(pk__in=ids)
+        count = 0
+        for el in qs:
+            el.delete()  # 软删（BaseModel）
+            count += 1
+        AuditLog.objects.create(
+            action="asset.element_bulk_delete",
+            detail=f"批量删除元素 {count} 条（ids={ids}）",
+        )
+        return Response({"deleted": count})
+
     @action(detail=False, methods=["post"], url_path="query")
     def query(self, request):
         """search-first 查询入口：给定 URL + name + role (+snapshot_hash)，

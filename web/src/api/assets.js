@@ -76,6 +76,16 @@ export function deleteElement(id) {
   })
 }
 
+// 批量删除元素（软删）——URL 用字符串拼接
+export function bulkDeleteElements(ids) {
+  return request({
+    url: '/assets/elements/bulk-delete/',
+    method: 'post',
+    data: { ids },
+    timeout: 30000,
+  })
+}
+
 // ===== Query（search-first 查询测试） =====
 
 // 智能查询元素定位器匹配度

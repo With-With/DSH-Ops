@@ -85,15 +85,30 @@
               </el-input>
             </div>
             <el-button type="primary" :icon="Plus" @click="openElementDialog">新建元素</el-button>
+            <el-button
+              type="danger"
+              :icon="Delete"
+              :disabled="selectedElements.length === 0"
+              @click="handleBulkDeleteElements"
+            >
+              删除选中（{{ selectedElements.length }}）
+            </el-button>
           </div>
 
-          <el-table v-loading="elementsLoading" :data="elementList" stripe style="width: 100%">
+          <el-table
+            v-loading="elementsLoading"
+            :data="elementList"
+            stripe
+            style="width: 100%"
+            @selection-change="handleElementSelectionChange"
+          >
             <template #empty>
               <el-empty description="暂无元素，切换页面筛选或点击【新建元素】">
                 <el-button type="primary" :icon="Plus" @click="openElementDialog">新建元素</el-button>
               </el-empty>
             </template>
 
+            <el-table-column type="selection" width="50" />
             <el-table-column label="所属页" min-width="140" show-overflow-tooltip>
               <template #default="{ row }">
                 <span>{{ getPageName(row.page_id) }}</span>
@@ -101,9 +116,17 @@
             </el-table-column>
             <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
             <el-table-column prop="role" label="Role" width="120" />
-            <el-table-column label="候选定位器数" width="120" align="center">
+            <el-table-column label="候选定位器数" width="130" align="center">
               <template #default="{ row }">
-                <el-tag size="small" effect="plain">{{ (row.candidates || []).length }}</el-tag>
+                <el-button
+                  link
+                  type="primary"
+                  size="small"
+                  :disabled="!(row.candidates || []).length"
+                  @click="handleViewCandidates(row)"
+                >
+                  {{ (row.candidates || []).length }} 个
+                </el-button>
               </template>
             </el-table-column>
             <el-table-column label="snapshot_hash" width="120" align="center">
@@ -137,6 +160,52 @@
         </el-tab-pane>
       </el-tabs>
     </el-card>
+
+    <!-- 候选定位器明细弹窗 -->
+    <el-dialog
+      v-model="candidatesDialogVisible"
+      :title="candidatesDialogTitle"
+      width="640px"
+    >
+      <div v-if="candidatesDetail" class="candidates-dialog">
+        <el-descriptions :column="2" border size="small" class="cand-desc">
+          <el-descriptions-item label="元素">{{ candidatesDetail.name }}</el-descriptions-item>
+          <el-descriptions-item label="Role">{{ candidatesDetail.role || '—' }}</el-descriptions-item>
+        </el-descriptions>
+        <el-table
+          v-if="candidatesDetail.candidates && candidatesDetail.candidates.length"
+          :data="candidatesDetail.candidates"
+          stripe
+          size="small"
+          class="cand-table"
+        >
+          <el-table-column type="index" label="#" width="55" align="center" />
+          <el-table-column label="类型" width="130">
+            <template #default="{ row }">
+              <el-tag size="small" effect="plain">{{ row.type }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="定位值" min-width="200" show-overflow-tooltip>
+            <template #default="{ row }">
+              <code class="cand-value">{{ row.value }}</code>
+            </template>
+          </el-table-column>
+          <el-table-column label="优先级" width="90" align="center">
+            <template #default="{ row }">{{ row.priority ?? '—' }}</template>
+          </el-table-column>
+          <el-table-column label="健壮性" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag
+                :type="row.robustness === 'strong' ? 'success' : (row.robustness === 'medium' ? 'warning' : 'info')"
+                size="small"
+                effect="light"
+              >{{ row.robustness || '—' }}</el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-else description="该元素暂无候选定位器" :image-size="60" />
+      </div>
+    </el-dialog>
 
     <!-- 新建页面对话框 -->
     <el-dialog
@@ -361,7 +430,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Search,
   Plus,
@@ -374,6 +443,7 @@ import {
   getElementList,
   createElement,
   deleteElement,
+  bulkDeleteElements,
   queryElement,
 } from '@/api/assets'
 import { formatTime } from '@/utils/format'
@@ -392,6 +462,12 @@ const pageForm = reactive({ name: '', url_pattern: '', notes: '' })
 const elementsLoading = ref(false)
 const elementList = ref([])
 const elementFilter = reactive({ page_id: null, search: '' })
+const selectedElements = ref([])
+
+// 候选定位器明细弹窗
+const candidatesDialogVisible = ref(false)
+const candidatesDialogTitle = ref('候选定位器')
+const candidatesDetail = ref(null)
 const elementDialogVisible = ref(false)
 const elementSubmitting = ref(false)
 const elementForm = reactive({
@@ -576,6 +652,34 @@ function handleDeleteElement(row) {
   deleteDialogVisible.value = true
 }
 
+// P4：元素多选 + 批量删除
+function handleElementSelectionChange(rows) {
+  selectedElements.value = rows
+}
+
+async function handleBulkDeleteElements() {
+  const ids = selectedElements.value.map((r) => r.id)
+  if (!ids.length) return
+  try {
+    await ElMessageBox.confirm(
+      `确定删除选中的 ${ids.length} 个元素？`,
+      '批量删除元素',
+      { type: 'warning', confirmButtonText: '删除' },
+    )
+    const result = await bulkDeleteElements(ids)
+    ElMessage.success(`已删除 ${result.deleted} 个元素`)
+    selectedElements.value = []
+    fetchElements()
+  } catch (e) { /* 取消 */ }
+}
+
+// P4：候选定位器明细弹窗
+function handleViewCandidates(row) {
+  candidatesDetail.value = row
+  candidatesDialogTitle.value = `候选定位器 - ${row.name || row.id}`
+  candidatesDialogVisible.value = true
+}
+
 // ---- Query actions ----
 async function handleQuery() {
   if (!queryForm.page_url.trim()) {
@@ -700,6 +804,22 @@ onMounted(async () => {
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 12px;
   color: var(--do-fg-secondary);
+}
+
+/* P4：候选定位器弹窗 */
+.candidates-dialog .cand-desc {
+  margin-bottom: 12px;
+}
+
+.candidates-dialog .cand-table {
+  margin-top: 4px;
+}
+
+.cand-value {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  color: var(--do-primary);
+  word-break: break-all;
 }
 
 .candidates-wrapper {
