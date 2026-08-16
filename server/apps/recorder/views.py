@@ -95,10 +95,23 @@ class RecordingViewSet(viewsets.GenericViewSet):
                 {"detail": "已有录制会话进行中，请先结束"},
                 status=status.HTTP_409_CONFLICT,
             )
-        session = start_session(
-            name=(request.data or {}).get("name", ""),
-            start_url=(request.data or {}).get("start_url", ""),
-        )
+        try:
+            session = start_session(
+                name=(request.data or {}).get("name", ""),
+                start_url=(request.data or {}).get("start_url", ""),
+            )
+        except Exception as exc:  # Popen/环境异常 -> 友好 500 而非裸异常
+            from apps.core.models import AuditLog
+
+            AuditLog.objects.create(
+                action="codegen.start_error",
+                detail=f"{type(exc).__name__}: {exc}",
+            )
+            return Response(
+                {"detail": f"启动录制器失败：{type(exc).__name__}: {exc}，"
+                          "请确认 playwright 可用（配置中心可安装）"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         return Response(
             {
                 "session_id": session["session_id"],
