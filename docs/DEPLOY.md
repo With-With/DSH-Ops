@@ -59,7 +59,23 @@ skill 文档，**按团队约定不入库**）、`contracts/`（双端共享 JSO
 ```powershell
 cd D:\AI-soft\AI-TESTHUB\DSH-Ops\server
 ..\venv\Scripts\python.exe manage.py test apps.runtime_mgr
+# P1 全链冒烟（录制->解析->trace回放->元素先搜后建->任务集，需真实浏览器）
+powershell -ExecutionPolicy Bypass -File ..\scripts\smoke_p1.ps1
 ```
+
+## 四B、P1 补充说明（录制/回放/元素仓/任务集）
+
+1. **Playwright 浏览器通道**：回放默认 `channel=msedge`（Windows 自带 Edge，**免下载**）。
+   如需换：环境变量 `DSHOPS_BROWSER_CHANNEL=chromium|chrome|firefox|msedge`；用 chromium 需先
+   `..\venv\Scripts\python.exe -m playwright install chromium`。
+2. **回放产物**：trace.zip 存于 `server/artifacts/traces/replay_<id>/`（已 gitignore），
+   可在「回放中心」页面直接下载，或用 `npx playwright show-trace <文件>` 本地打开。
+3. **演示登录页**：`/api/demo/login/`（平台自带），配套金样本脚本 `scripts/demo_login_recorded.py`，
+   供录制/回放链路自包含验证。
+4. **回放接口为同步执行**（30~90s），前端已设 120s 超时；P2 引入 Celery 后改异步。
+5. **requirements.txt**：`pip install -r server\requirements.txt`（P1 起新增 playwright）。
+   国内网络若超时（files.pythonhosted.org 不通），加清华镜像：
+   `pip install -r server\requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`。
 
 ## 五、常见问题
 

@@ -1,4 +1,4 @@
-﻿# 一键安装（开发机，Windows PowerShell）
+# 一键安装（开发机，Windows PowerShell）
 # 用法: powershell -ExecutionPolicy Bypass -File scripts\install_all.ps1
 
 $ErrorActionPreference = "Stop"
@@ -9,7 +9,7 @@ if (-not (Test-Path "$root\venv")) {
     python -m venv "$root\venv"
 }
 & "$root\venv\Scripts\python.exe" -m pip install --upgrade pip -q
-& "$root\venv\Scripts\pip.exe" install django">=5.1,<5.3" djangorestframework django-filter django-cors-headers
+& "$root\venv\Scripts\pip.exe" install -r "$root\server\requirements.txt"
 
 # 2. 数据库迁移
 Push-Location "$root\server"

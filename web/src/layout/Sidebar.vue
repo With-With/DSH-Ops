@@ -52,10 +52,10 @@ const route = useRoute()
 
 const menuItems = [
   { path: '/runtimes', title: '运行时管理', icon: 'Cpu' },
-  { path: '/recorder', title: '录制中心', icon: 'VideoCamera', phase: 'P1' },
-  { path: '/replay', title: '回放中心', icon: 'VideoPlay', phase: 'P1' },
-  { path: '/assets', title: '元素仓', icon: 'Picture', phase: 'P1' },
-  { path: '/tasksets', title: '任务集', icon: 'Collection', phase: 'P1' },
+  { path: '/recorder', title: '录制中心', icon: 'VideoCamera' },
+  { path: '/replay', title: '回放中心', icon: 'VideoPlay' },
+  { path: '/assets', title: '元素仓', icon: 'Picture' },
+  { path: '/tasksets', title: '任务集', icon: 'Collection' },
   { path: '/reviews', title: '评审收件箱', icon: 'Message', phase: 'P2' },
   { path: '/ai-config', title: 'AI 配置', icon: 'MagicStick', phase: 'P3' },
 ]

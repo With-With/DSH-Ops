@@ -1,0 +1,107 @@
+"""
+tasksets 模型：TaskSet（任务集）+ StageJob（阶段作业）。
+
+TaskSet 是录制→回放→抽取→设计→生成 的完整流水线的状态机载体，
+correlation_uuid 作为跨系统 ID 关联链的起点。
+"""
+import uuid
+
+from django.db import models
+
+from apps.core.models import BaseModel
+
+
+class TaskSet(BaseModel):
+    """任务集：一个录制对应的完整流水线实例。"""
+
+    STATUS_CHOICES = [
+        ("created", "已创建"),
+        ("replaying", "回放中"),
+        ("replay_done", "回放完成"),
+        ("failed", "失败"),
+    ]
+
+    name = models.CharField("任务集名称", max_length=128)
+    recording_id = models.IntegerField("录制 ID", db_index=True)
+    correlation_uuid = models.UUIDField(
+        "关联链 UUID",
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+        db_index=True,
+        help_text="跨系统 ID 关联链的起点（recorder → replay → asset → testdata …）",
+    )
+    status = models.CharField(
+        "状态",
+        max_length=32,
+        choices=STATUS_CHOICES,
+        default="created",
+        db_index=True,
+    )
+    current_stage = models.CharField("当前阶段", max_length=64, blank=True, default="")
+    error = models.TextField("错误信息", blank=True, default="")
+
+    class Meta:
+        db_table = "tasksets"
+        verbose_name = "任务集"
+        verbose_name_plural = verbose_name
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"TaskSet #{self.id} {self.name} [{self.status}]"
+
+
+class StageJob(BaseModel):
+    """阶段作业：TaskSet 每个阶段的执行记录。"""
+
+    STAGE_CHOICES = [
+        ("replay", "回放"),
+        ("extract", "抽取"),
+        ("design", "设计"),
+        ("generate", "生成"),
+    ]
+
+    STATUS_CHOICES = [
+        ("running", "运行中"),
+        ("success", "成功"),
+        ("failed", "失败"),
+    ]
+
+    task_set = models.ForeignKey(
+        TaskSet,
+        verbose_name="所属任务集",
+        on_delete=models.CASCADE,
+        related_name="stage_jobs",
+    )
+    stage = models.CharField("阶段", max_length=32, choices=STAGE_CHOICES, db_index=True)
+    status = models.CharField(
+        "状态", max_length=16, choices=STATUS_CHOICES, default="running", db_index=True
+    )
+    external_ref = models.CharField(
+        "外部引用",
+        max_length=256,
+        blank=True,
+        default="",
+        help_text="如 'replay:12'，关联 replay 那边的 ReplayRun",
+    )
+    detail = models.JSONField(
+        "详细信息",
+        default=dict,
+        blank=True,
+        help_text="duration / steps / trace_hash 等执行数据",
+    )
+    started_at = models.DateTimeField("开始时间", null=True, blank=True)
+    finished_at = models.DateTimeField("结束时间", null=True, blank=True)
+
+    class Meta:
+        db_table = "taskset_stage_jobs"
+        verbose_name = "阶段作业"
+        verbose_name_plural = verbose_name
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["task_set", "stage"]),
+            models.Index(fields=["task_set", "status"]),
+        ]
+
+    def __str__(self):
+        return f"StageJob {self.stage} [{self.status}] (task_set={self.task_set_id})"

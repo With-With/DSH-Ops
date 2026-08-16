@@ -35,3 +35,6 @@ htmlcov/
 allure-results/
 allure-report/
 *.log
+
+# P1: 回放产物（trace.zip 等）
+server/artifacts/
