@@ -154,17 +154,6 @@
                 <span v-else class="empty-tip">0</span>
               </template>
             </el-table-column>
-            <el-table-column label="AI 重组" width="110" align="center">
-              <template #default="{ row }">
-                <el-tag
-                  :type="normalizeTagType(row.normalize_status)"
-                  size="small"
-                  effect="light"
-                >
-                  {{ normalizeText(row.normalize_status) }}
-                </el-tag>
-              </template>
-            </el-table-column>
             <el-table-column prop="created_at" label="创建时间" width="180">
               <template #default="{ row }">
                 <span v-if="row.created_at">{{ formatTime(row.created_at) }}</span>
@@ -381,23 +370,14 @@
     >
       <div v-loading="replayListLoading" class="replay-dialog-body">
         <div class="replay-toolbar">
-          <el-button
-            type="primary"
-            :icon="VideoPlay"
-            :loading="replaying"
-            :disabled="!replayDialogRecordingId"
-            @click="handleTriggerReplay"
-          >
-            {{ replaying ? '回放执行中…' : '执行回放' }}
-          </el-button>
           <el-text type="info" size="small">
-            回放将录制 trace 与视频，完成后可在此查看
+            自动加载本脚本最近的回放视频（保存录制时会自动回放生成）
           </el-text>
         </div>
 
         <el-empty
           v-if="!replayListLoading && replayRuns.length === 0"
-          description="该录制暂无回放记录，点击【执行回放】开始"
+          description="暂无回放记录：重新录制并保存后会自动生成回放视频"
           :image-size="70"
         />
 
@@ -521,7 +501,7 @@ import {
   stopCodegen,
   normalizeRecording,
 } from '@/api/recording'
-import { getReplayList, startReplayAsync } from '@/api/replay'
+import { getReplayList } from '@/api/replay'
 import { formatTime } from '@/utils/format'
 
 // ---- state ----
@@ -543,7 +523,7 @@ const selectedRows = ref([])
 const codegenForm = reactive({
   name: '',
   start_url: 'http://127.0.0.1:8001/api/demo/login/',
-  auto_analyze: true,
+  auto_analyze: false,  // P4 #3：默认关闭自动 AI 分析
 })
 const codegenActive = ref(false)
 const codegenStarting = ref(false)
@@ -575,7 +555,6 @@ const replayDialogTitle = ref('回放')
 const replayDialogRecordingId = ref(null)
 const replayListLoading = ref(false)
 const replayRuns = ref([])
-const replaying = ref(false)
 const currentReplayVideoUrl = ref('')
 let replayPollTimer = null
 
@@ -679,7 +658,8 @@ async function handleStopCodegen() {
     }
     if (result.ok) {
       ElMessage.success(
-        `录制已保存：${result.name}（${result.actions_count} 个动作）` +
+        `录制已保存：${result.name}（${result.actions_count} 个动作），` +
+        (result.auto_replay ? '自动回放生成视频中…' : '') +
         (result.auto_analyze ? '，AI 重组已启动' : '')
       )
       await fetchList()
@@ -752,11 +732,41 @@ async function loadReplayRuns(recordingId) {
     if (withVideo) {
       currentReplayVideoUrl.value = withVideo.video_url || ''
     }
+    // 有回放仍在执行（保存后自动回放）则轮询直到终态
+    const anyRunning = replayRuns.value.some((r) => r.status === 'running')
+    if (anyRunning) {
+      startReplayPolling(recordingId)
+    }
   } catch (e) {
     replayRuns.value = []
   } finally {
     replayListLoading.value = false
   }
+}
+
+// 自动回放轮询：running -> 终态后刷新列表并自动加载视频
+function startReplayPolling(recordingId) {
+  if (replayPollTimer) clearInterval(replayPollTimer)
+  let rounds = 0
+  replayPollTimer = setInterval(async () => {
+    rounds += 1
+    try {
+      const data = await getReplayList({ recording_id: recordingId })
+      const runs = Array.isArray(data) ? data : (data?.results || [])
+      replayRuns.value = runs
+      const anyRunning = runs.some((r) => r.status === 'running')
+      if (!anyRunning || rounds > 60) {
+        clearInterval(replayPollTimer)
+        replayPollTimer = null
+        ElMessage.success('回放完成，视频已就绪')
+        const withVideo = runs.find((r) => r.video_available)
+        if (withVideo) currentReplayVideoUrl.value = withVideo.video_url || ''
+      }
+    } catch (e) {
+      clearInterval(replayPollTimer)
+      replayPollTimer = null
+    }
+  }, 3000)
 }
 
 function handleReplayRowChange(row) {
@@ -789,40 +799,7 @@ function handleFullscreenVideo() {
 }
 
 async function handleTriggerReplay() {
-  const id = replayDialogRecordingId.value
-  if (!id) return
-  replaying.value = true
-  try {
-    await startReplayAsync(id)
-    ElMessage.info('回放已启动，执行中…')
-    // 轮询直到终态后刷新列表
-    let rounds = 0
-    replayPollTimer = setInterval(async () => {
-      rounds += 1
-      try {
-        const data = await getReplayList({ recording_id: id })
-        const runs = Array.isArray(data) ? data : (data?.results || [])
-        const running = runs.some((r) => r.status === 'running')
-        if (!running || rounds > 60) {
-          clearInterval(replayPollTimer)
-          replayPollTimer = null
-          replaying.value = false
-          ElMessage.success('回放完成')
-          replayRuns.value = runs
-          const withVideo = runs.find((r) => r.video_available)
-          if (withVideo) currentReplayVideoUrl.value = withVideo.video_url || ''
-        } else {
-          replayRuns.value = runs
-        }
-      } catch (e) {
-        clearInterval(replayPollTimer)
-        replayPollTimer = null
-        replaying.value = false
-      }
-    }, 3000)
-  } catch (err) {
-    replaying.value = false
-  }
+  // 已移除【执行回放】按钮（保存录制时自动回放）；保留空实现防引用残留
 }
 
 // ---- 手动录制弹窗 ----

@@ -93,8 +93,13 @@ def _kill_tree(pid: int) -> None:
         os.kill(pid, 9)
 
 
-def stop_session(session_id: str, auto_analyze: bool = False) -> dict:
-    """结束录制：杀进程、等产物落盘、建 Recording（可选触发 AI 重组）。"""
+def stop_session(session_id: str, auto_analyze: bool = False,
+                 auto_replay: bool = True) -> dict:
+    """结束录制：杀进程、等产物落盘、建 Recording（可选 AI 重组）。
+
+    auto_replay=True（默认）：保存后自动异步回放一次，生成 trace 与视频，
+    供录制中心回放弹窗"自动加载回放视频"使用（P4 #1）。
+    """
     with _sessions_lock:
         session = _sessions.get(session_id)
     if session is None:
@@ -156,6 +161,7 @@ def stop_session(session_id: str, auto_analyze: bool = False) -> dict:
         "name": recording.name,
         "actions_count": recording.actions_count,
         "auto_analyze": bool(auto_analyze),
+        "auto_replay": bool(auto_replay),
     }
 
     if auto_analyze:
@@ -168,7 +174,32 @@ def stop_session(session_id: str, auto_analyze: bool = False) -> dict:
             name=f"codegen-normalize-{recording.id}",
         ).start()
 
+    if auto_replay:
+        threading.Thread(
+            target=_safe_auto_replay,
+            args=(recording.id,),
+            daemon=True,
+            name=f"codegen-replay-{recording.id}",
+        ).start()
+
     return result
+
+
+def _safe_auto_replay(recording_id: int) -> None:
+    """保存后自动回放（生成 trace + 视频），任何异常不抛出。"""
+    from django.db import connections
+
+    from apps.recorder.models import Recording
+
+    try:
+        rec = Recording.objects.get(pk=recording_id)
+        from apps.replay.runner import run_replay  # lazy import 跨 app
+
+        run_replay(rec)
+    except Exception:
+        pass
+    finally:
+        connections.close_all()
 
 
 def _safe_normalize(recording_id: int) -> None:

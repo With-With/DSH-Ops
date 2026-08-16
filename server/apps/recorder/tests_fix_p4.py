@@ -46,7 +46,7 @@ class CodegenParseOnSaveTests(TestCase):
                 "pid": 1, "output_file": str(tmp), "stopped": False,
             }
         try:
-            result = stop_session("s1")
+            result = stop_session("s1", auto_replay=False)
             self.assertTrue(result["ok"])
             rec = Recording.objects.get(pk=result["recording_id"])
             self.assertGreater(rec.actions_count, 0, "动作数应为解析结果")
@@ -55,6 +55,36 @@ class CodegenParseOnSaveTests(TestCase):
                 rec.start_url, "http://127.0.0.1:8001/api/demo/login/"
             )
             self.assertEqual(rec.language, "python")
+        finally:
+            with _sessions_lock:
+                _sessions.clear()
+
+    @patch("apps.recorder.codegen.subprocess.Popen")
+    @patch("apps.recorder.codegen._safe_auto_replay")
+    def test_stop_session_auto_replay_flag(self, mock_replay, mock_popen):
+        """auto_replay=True 时应在后台触发回放（生成 trace+视频）。"""
+        import tempfile
+        import time
+        from pathlib import Path
+
+        tmp = Path(tempfile.mkdtemp()) / "raw_script.py"
+        tmp.write_text(DEMO_SCRIPT, encoding="utf-8")
+
+        with _sessions_lock:
+            _sessions.clear()
+            _sessions["s2"] = {
+                "session_id": "s2", "name": "auto-replay",
+                "start_url": "", "started_at": "2026-01-01T00:00:00",
+                "pid": 1, "output_file": str(tmp), "stopped": False,
+            }
+        try:
+            result = stop_session("s2", auto_replay=True)
+            self.assertTrue(result["auto_replay"])
+            for _ in range(20):
+                if mock_replay.called:
+                    break
+                time.sleep(0.05)
+            mock_replay.assert_called_once()
         finally:
             with _sessions_lock:
                 _sessions.clear()
