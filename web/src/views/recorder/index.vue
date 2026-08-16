@@ -89,13 +89,6 @@
               show-icon
               :title="`浏览器已打开（${codegenStartedAt}），请在浏览器中操作页面完成录制，然后点击【结束并保存】`"
             />
-            <el-alert
-              v-else
-              type="info"
-              :closable="false"
-              show-icon
-              title="点击【开始录制】将打开 Playwright 录制器浏览器：页面操作会被自动录制为脚本，结束后保存到录制列表"
-            />
           </div>
         </el-card>
       </el-collapse-item>
