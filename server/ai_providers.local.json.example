@@ -1,0 +1,22 @@
+{
+  "_说明": "AI 提供方密钥本地配置文件（禁止上传 GitHub，见 .gitignore）。",
+  "_用法": "复制本文件为 ai_providers.local.json，填入真实 key 后执行：python manage.py seed_ai_providers",
+  "providers": [
+    {
+      "name": "DeepSeek 主力",
+      "provider": "deepseek",
+      "base_url": "https://api.deepseek.com/v1",
+      "model_name": "deepseek-chat",
+      "api_key": "sk-替换为你的密钥",
+      "is_default": true
+    },
+    {
+      "name": "火山方舟",
+      "provider": "volcark",
+      "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+      "model_name": "doubao-pro-32k",
+      "api_key": "ark-替换为你的密钥",
+      "is_default": false
+    }
+  ]
+}

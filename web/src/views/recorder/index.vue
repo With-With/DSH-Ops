@@ -432,11 +432,34 @@
           <el-table-column prop="created_at" label="时间" min-width="160">
             <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
           </el-table-column>
+          <el-table-column label="操作" width="90" align="center">
+            <template #default="{ row }">
+              <el-button
+                type="success"
+                link
+                size="small"
+                :icon="VideoPlay"
+                :disabled="!row.video_available"
+                @click="handlePlayThis(row)"
+              >
+                播放
+              </el-button>
+            </template>
+          </el-table-column>
         </el-table>
 
         <!-- 视频播放 -->
         <div v-if="currentReplayVideoUrl" class="replay-video-box">
-          <video :src="currentReplayVideoUrl" controls autoplay style="width: 100%; border-radius: 6px; background: #000" />
+          <video
+            ref="replayVideoRef"
+            :src="currentReplayVideoUrl"
+            controls
+            autoplay
+            style="width: 100%; border-radius: 6px; background: #000"
+          />
+          <div class="replay-video-actions">
+            <el-button type="primary" :icon="FullScreen" @click="handleFullscreenVideo">⛶ 全屏回放</el-button>
+          </div>
         </div>
         <el-alert
           v-else-if="replayRuns.length > 0"
@@ -491,6 +514,7 @@ import {
   Search,
   List,
   InfoFilled,
+  FullScreen,
 } from '@element-plus/icons-vue'
 import {
   getRecordingList,
@@ -744,6 +768,30 @@ async function loadReplayRuns(recordingId) {
 function handleReplayRowChange(row) {
   if (!row) return
   currentReplayVideoUrl.value = row.video_available ? (row.video_url || '') : ''
+}
+
+// 行内【播放】：明确选择该条回放并播放其视频
+function handlePlayThis(row) {
+  currentReplayVideoUrl.value = row.video_available ? (row.video_url || '') : ''
+  if (!currentReplayVideoUrl.value) {
+    ElMessage.warning('该回放记录无视频')
+  }
+}
+
+// 全屏回放
+const replayVideoRef = ref(null)
+function handleFullscreenVideo() {
+  const video = replayVideoRef.value
+  if (!video) return
+  if (video.requestFullscreen) {
+    video.requestFullscreen().catch((e) => {
+      ElMessage.warning(`全屏失败：${e.message || e}`)
+    })
+  } else if (video.webkitRequestFullscreen) {
+    video.webkitRequestFullscreen()
+  } else {
+    ElMessage.warning('当前浏览器不支持全屏 API')
+  }
 }
 
 async function handleTriggerReplay() {

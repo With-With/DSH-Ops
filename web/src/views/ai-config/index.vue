@@ -100,6 +100,10 @@
             show-password
             :placeholder="editingId ? '留空表示不修改' : 'sk-...'"
           />
+          <div v-if="editingId && currentMask" class="key-tip">
+            <el-icon><Lock /></el-icon>
+            当前已配置密钥：<code>{{ currentMask }}</code>（脱敏显示，留空保存则不修改）
+          </div>
         </el-form-item>
         <el-form-item label="扩展参数">
           <el-input
@@ -182,6 +186,9 @@ const form = reactive({
   api_key: '', extra_raw: '', is_default: false, remark: '',
 })
 
+// 编辑时展示的当前密钥掩码（"第二次无需配置"提示）
+const currentMask = ref('')
+
 function providerTagType(p) {
   return { deepseek: 'primary', volcark: 'warning', openai_compatible: 'success', ollama: 'info', custom: 'info' }[p] || 'info'
 }
@@ -213,6 +220,7 @@ function openCreate() {
 
 function openEdit(row) {
   editingId.value = row.id
+  currentMask.value = row.api_key_mask || ''
   Object.assign(form, {
     name: row.name,
     provider: row.provider,
@@ -372,5 +380,19 @@ onMounted(fetchList)
   color: var(--do-fg-tertiary);
   text-align: left;
   line-height: 1.7;
+}
+
+.key-tip {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--do-fg-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.key-tip code {
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: var(--do-primary);
 }
 </style>
