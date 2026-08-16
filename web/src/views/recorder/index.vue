@@ -1,16 +1,14 @@
 <template>
   <div class="recorder-page">
-    <!-- 顶部：模式切换 + 搜索刷新 -->
+    <!-- 顶部：操作按钮 + 搜索刷新 -->
     <div class="top-bar">
       <div class="top-bar-left">
-        <el-radio-group v-model="activeMode" size="default">
-          <el-radio-button value="browser" @change="switchMode">
-            <el-icon style="margin-right: 4px"><VideoCamera /></el-icon>浏览器录制
-          </el-radio-button>
-          <el-radio-button value="manual" @change="switchMode">
-            <el-icon style="margin-right: 4px"><Document /></el-icon>手动录制
-          </el-radio-button>
-        </el-radio-group>
+        <el-button type="primary" :icon="VideoCamera" @click="activeSections = ['browser', 'list']">
+          🎥 浏览器录制
+        </el-button>
+        <el-button :icon="Document" @click="openManualDialog">
+          📄 手动录制
+        </el-button>
       </div>
       <div class="top-bar-right">
         <el-input
@@ -102,30 +100,7 @@
         </el-card>
       </el-collapse-item>
 
-      <!-- 区块二：手动录制 -->
-      <el-collapse-item name="manual">
-        <template #title>
-          <span class="collapse-title">
-            <el-icon><Document /></el-icon>
-            手动录制脚本
-          </span>
-        </template>
-
-        <el-card shadow="never" class="manual-entry-card">
-          <div class="manual-entry">
-            <el-icon class="entry-icon"><Upload /></el-icon>
-            <div class="entry-text">
-              <div class="entry-title">通过粘贴或上传 Python 脚本创建录制</div>
-              <div class="entry-desc">支持粘贴 playwright 录制脚本内容，或上传 .py / .txt 文件，提交后自动解析</div>
-            </div>
-            <el-button type="primary" :icon="Promotion" @click="openManualDialog">
-              打开手动录制
-            </el-button>
-          </div>
-        </el-card>
-      </el-collapse-item>
-
-      <!-- 区块三：已解析脚本 -->
+      <!-- 区块二：已解析脚本 -->
       <el-collapse-item name="list">
         <template #title>
           <span class="collapse-title">
@@ -162,7 +137,7 @@
           >
             <template #empty>
               <el-empty description="暂无录制脚本">
-                <el-button type="primary" :icon="Promotion" @click="activeMode = 'browser'; activeSections = ['browser', 'list']">
+                <el-button type="primary" :icon="Promotion" @click="activeSections = ['browser', 'list']">
                   开始录制
                 </el-button>
               </el-empty>
@@ -434,8 +409,7 @@ const loading = ref(false)
 const recordingList = ref([])
 const tableRef = ref(null)
 
-// 模式与折叠区块
-const activeMode = ref('browser')
+// 折叠区块
 const activeSections = ref(['browser', 'list'])
 
 // 搜索
@@ -499,17 +473,6 @@ const NORMALIZE_MAP = {
 
 function normalizeTagType(s) { return NORMALIZE_MAP[s]?.type || 'info' }
 function normalizeText(s) { return NORMALIZE_MAP[s]?.text || s || '未重组' }
-
-// ---- 模式切换 ----
-function switchMode(val) {
-  if (val === 'browser') {
-    // 展开浏览器录制 + 列表
-    activeSections.value = ['browser', 'list']
-  } else if (val === 'manual') {
-    // 展开手动录制入口 + 列表
-    activeSections.value = ['manual', 'list']
-  }
-}
 
 // ---- actions ----
 async function fetchList() {
@@ -858,40 +821,6 @@ onBeforeUnmount(() => {
 
 .auto-tip {
   margin-left: 8px;
-}
-
-/* 手动录制入口卡片 */
-.manual-entry-card {
-  border-radius: 8px;
-}
-
-.manual-entry {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 8px 4px;
-}
-
-.entry-icon {
-  font-size: 32px;
-  color: var(--do-primary, #409eff);
-  flex-shrink: 0;
-}
-
-.entry-text {
-  flex: 1;
-}
-
-.entry-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--do-fg);
-  margin-bottom: 4px;
-}
-
-.entry-desc {
-  font-size: 13px;
-  color: var(--do-fg-tertiary);
 }
 
 /* 列表卡片 */

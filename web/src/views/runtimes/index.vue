@@ -12,6 +12,15 @@
         <div class="card-header">
           <span class="card-title"><el-icon><Cpu /></el-icon> DSH 环境</span>
           <div class="header-actions">
+            <a
+              href="https://github.com/liu-zq/dsh"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="github-link"
+            >
+              <el-icon><Link /></el-icon>
+              <span>GitHub</span>
+            </a>
             <el-button
               type="primary"
               :icon="Search"
@@ -91,7 +100,19 @@
       <template #header>
         <div class="card-header">
           <span class="card-title"><el-icon><Grid /></el-icon> 组件管理</span>
-          <el-text type="info" size="small">playwright / selenium / 系统浏览器 / chromium 通道</el-text>
+          <div class="header-actions">
+            <el-text type="info" size="small">playwright / selenium / 系统浏览器 / chromium 通道</el-text>
+            <el-button
+              type="primary"
+              plain
+              size="small"
+              :icon="Search"
+              :loading="detectingComponents"
+              @click="handleDetectComponents"
+            >
+              {{ detectingComponents ? '检测中...' : '检测' }}
+            </el-button>
+          </div>
         </div>
       </template>
 
@@ -128,7 +149,14 @@
           </div>
           <div class="comp-actions">
             <el-button
-              v-if="comp.actions.includes('install')"
+              v-if="comp.installed"
+              size="small"
+              disabled
+            >
+              已安装
+            </el-button>
+            <el-button
+              v-else-if="comp.actions.includes('install')"
               type="primary"
               size="small"
               :icon="Download"
@@ -205,6 +233,7 @@ import {
   healthCheckRuntime,
   deleteRuntime,
   getComponents,
+  detectComponents,
   installComponent,
   deleteComponent,
 } from '@/api/runtime'
@@ -223,6 +252,7 @@ const deleteOptions = reactive({ physical: false, deleteHome: false })
 // ---- 组件 ----
 const componentsLoading = ref(false)
 const componentList = ref([])
+const detectingComponents = ref(false)
 
 const STATUS_MAP = {
   healthy: { text: '健康', type: 'success' },
@@ -269,7 +299,7 @@ async function handleDetect() {
   try {
     await detectRuntimes()
     ElMessage.success('检测完成')
-    fetchList()
+    await Promise.all([fetchList(), fetchComponents()])
   } catch (err) {
     // 拦截器已提示
   } finally {
@@ -282,7 +312,8 @@ async function handleHealthCheck(row) {
   try {
     const result = await healthCheckRuntime(row.id)
     if (result.passed) {
-      ElMessage.success(`健康检查通过（${result.detail?.profile_used || ''}）`)
+      const profile = result.detail?.profile_used
+      ElMessage.success(profile ? `健康检查通过（${profile}）` : '健康检查通过')
     } else {
       ElMessage.error(`健康检查失败：${result.error || '未知原因'}`)
     }
@@ -327,6 +358,19 @@ async function fetchComponents() {
     componentList.value = []
   } finally {
     componentsLoading.value = false
+  }
+}
+
+async function handleDetectComponents() {
+  detectingComponents.value = true
+  try {
+    await detectComponents()
+    ElMessage.success('组件检测完成')
+    await fetchComponents()
+  } catch (err) {
+    // 拦截器已提示
+  } finally {
+    detectingComponents.value = false
   }
 }
 
@@ -426,6 +470,20 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--do-fg-secondary);
+  font-size: 13px;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.github-link:hover {
+  color: var(--do-primary);
 }
 
 .dsh-env-item {

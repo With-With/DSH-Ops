@@ -57,6 +57,15 @@ export function getComponents() {
   })
 }
 
+// 重新检测组件安装状态
+export function detectComponents() {
+  return request({
+    url: '/runtimes/components/detect/',
+    method: 'post',
+    timeout: 30000,
+  })
+}
+
 // 安装组件（线程执行，202 语义）
 export function installComponent(key) {
   return request({
