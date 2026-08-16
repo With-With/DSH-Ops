@@ -180,6 +180,10 @@ def run_replay(recording, task_set_id: Optional[int] = None,
             pages = [context.new_page()]
             runtime_warnings: List[str] = []
             _video_path = ""
+            # P4 修复：video 对象引用须在页面导航后、context.close() 前获取
+            # （new_page 后未导航时 page.video 为 None；close 后再访问会抛 Target closed），
+            # 然后在 close 之后对已保存引用调 path()（Playwright 推荐时序）
+            _video_ref = None
 
             try:
                 for i, action in enumerate(actions):
@@ -232,14 +236,30 @@ def run_replay(recording, task_set_id: Optional[int] = None,
                     steps_passed += 1
 
             finally:
-                # 停止 tracing 并保存；video 在 page/context close 后落盘
+                # 顺序关键：close 前取 video 引用（页面已导航）→ tracing.stop →
+                # context.close（视频落盘）→ 对引用调 path()
+                # P4 修复：文件 flush 可能有毫秒级延迟，此处**不**做 exists 即时检查
+                # （写入原始路径；video_available 由序列化器在读取时再校验文件存在）
                 try:
-                    _video_path = str(pages[0].video.path()) if pages[0].video else ""
+                    _video_ref = pages[0].video if not _video_ref else _video_ref
+                except Exception:
+                    _video_ref = None
+                try:
+                    context.tracing.stop(path=trace_path)
+                except Exception:
+                    pass
+                try:
+                    context.close()
+                except Exception:
+                    pass
+                try:
+                    _video_path = str(_video_ref.path()) if _video_ref else ""
                 except Exception:
                     _video_path = ""
-                context.tracing.stop(path=trace_path)
-                context.close()
-                browser.close()
+                try:
+                    browser.close()
+                except Exception:
+                    pass
 
         # 计算 trace hash
         trace_hash = _sha256_hex(trace_path) if os.path.exists(trace_path) else ""
@@ -254,6 +274,7 @@ def run_replay(recording, task_set_id: Optional[int] = None,
         replay_run.steps_passed = steps_passed
         replay_run.trace_path = trace_path
         replay_run.trace_hash = trace_hash
+        replay_run.video_path = _video_path
         replay_run.error = "\n".join(all_warnings) if all_warnings else ""
         replay_run.save()
 
@@ -274,7 +295,7 @@ def run_replay(recording, task_set_id: Optional[int] = None,
         replay_run.error = error_msg
         replay_run.trace_path = final_trace_path
         replay_run.trace_hash = trace_hash
-        replay_run.video_path = _video_path if _video_path and os.path.exists(_video_path) else ""
+        replay_run.video_path = _video_path
         replay_run.save()
 
     return replay_run
