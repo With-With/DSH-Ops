@@ -422,18 +422,14 @@
           </el-table-column>
         </el-table>
 
-        <!-- 视频播放 -->
+        <!-- 视频播放（全屏用播放器原生控件按钮，P4：去除重复全屏入口） -->
         <div v-if="currentReplayVideoUrl" class="replay-video-box">
           <video
-            ref="replayVideoRef"
             :src="currentReplayVideoUrl"
             controls
             autoplay
             style="width: 100%; border-radius: 6px; background: #000"
           />
-          <div class="replay-video-actions">
-            <el-button type="primary" :icon="FullScreen" @click="handleFullscreenVideo">⛶ 全屏回放</el-button>
-          </div>
         </div>
         <el-alert
           v-else-if="replayRuns.length > 0"
@@ -488,7 +484,6 @@ import {
   Search,
   List,
   InfoFilled,
-  FullScreen,
 } from '@element-plus/icons-vue'
 import {
   getRecordingList,
@@ -779,22 +774,6 @@ function handlePlayThis(row) {
   currentReplayVideoUrl.value = row.video_available ? (row.video_url || '') : ''
   if (!currentReplayVideoUrl.value) {
     ElMessage.warning('该回放记录无视频')
-  }
-}
-
-// 全屏回放
-const replayVideoRef = ref(null)
-function handleFullscreenVideo() {
-  const video = replayVideoRef.value
-  if (!video) return
-  if (video.requestFullscreen) {
-    video.requestFullscreen().catch((e) => {
-      ElMessage.warning(`全屏失败：${e.message || e}`)
-    })
-  } else if (video.webkitRequestFullscreen) {
-    video.webkitRequestFullscreen()
-  } else {
-    ElMessage.warning('当前浏览器不支持全屏 API')
   }
 }
 
