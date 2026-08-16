@@ -36,6 +36,20 @@ export function startReplay(recordingId) {
   })
 }
 
+/**
+ * 异步开始回放
+ * POST /replays/?async=1 -> 202 { id, status: "running", ... }
+ * 后续用 GET /replays/<id>/ 轮询至 success/failed
+ */
+export function startReplayAsync(recordingId) {
+  return request({
+    url: '/replays/?async=1',
+    method: 'post',
+    data: { recording_id: recordingId },
+    timeout: 30000,
+  })
+}
+
 // 下载回放 trace 文件
 // 注意：返回文件流，直接用 window.open 访问 trace_url 即可
 export function getReplayTraceUrl(id) {

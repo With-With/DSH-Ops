@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0.0-dev",
+  "pom_ref": "demo_pom_001",
+  "module": "登录",
+  "rows": [
+    {
+      "id": "row_0",
+      "name": "正常登录",
+      "method_tags": ["scenario", "equivalence"],
+      "classification": "separate_flow",
+      "flow": [0, 1, 2],
+      "params": {
+        "username": "admin",
+        "password": "${secret:password}"
+      },
+      "oracle": {
+        "expectation": "登录成功，跳转到首页并显示欢迎信息",
+        "assertion_hints": ["url_contains", "visible_text_contains:欢迎回来"]
+      },
+      "priority": "P0",
+      "needs_mock": false
+    }
+  ]
+}

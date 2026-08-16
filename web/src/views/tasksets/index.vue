@@ -125,6 +125,7 @@
       v-model="detailDrawerVisible"
       title="任务集详情"
       size="50%"
+      @close="handleDetailClose"
     >
       <div v-if="currentDetail" class="detail-content">
         <el-descriptions :column="1" border size="small">
@@ -143,6 +144,97 @@
           </el-descriptions-item>
         </el-descriptions>
 
+        <!-- 智能体阶段操作区 -->
+        <div class="stage-actions-section">
+          <h4 class="section-title">智能体阶段</h4>
+          <div class="stage-actions">
+            <el-button
+              type="primary"
+              :icon="MagicStick"
+              :loading="stageRunning === 'extract'"
+              :disabled="!canRunExtract"
+              @click="handleRunStage('extract')"
+            >
+              {{ stageRunning === 'extract' ? '智能体执行中…' : 'A1 提取' }}
+            </el-button>
+            <el-button
+              type="success"
+              :icon="Share"
+              :loading="stageRunning === 'design'"
+              :disabled="!canRunDesign"
+              @click="handleRunStage('design')"
+            >
+              {{ stageRunning === 'design' ? '智能体执行中…' : 'A2 设计' }}
+            </el-button>
+          </div>
+          <div v-if="!canRunExtract && !canRunDesign && currentDetail.status !== 'failed'" class="stage-hint">
+            <el-text type="info" size="small">
+              提示：回放完成后可执行 A1 提取，提取完成后可执行 A2 设计。
+            </el-text>
+          </div>
+          <div v-if="currentDetail.status === 'failed'" class="stage-hint">
+            <el-text type="warning" size="small">
+              当前状态为失败，可重新触发 A1 提取。
+            </el-text>
+          </div>
+        </div>
+
+        <!-- 草案列表 -->
+        <div class="drafts-section">
+          <h4 class="section-title">草案列表</h4>
+          <el-empty
+            v-if="!currentDetail.drafts || currentDetail.drafts.length === 0"
+            description="暂无草案"
+            :image-size="60"
+          />
+          <div v-else class="draft-list">
+            <div
+              v-for="draft in currentDetail.drafts"
+              :key="draft.id"
+              class="draft-item"
+            >
+              <div class="draft-main">
+                <el-tag
+                  :type="draftKindTagType(draft.kind)"
+                  effect="dark"
+                  size="small"
+                  class="draft-kind"
+                >
+                  {{ draft.kind === 'pom' ? 'POM' : '矩阵' }}
+                </el-tag>
+                <el-tooltip :content="draft.valid ? '校验通过' : '校验未通过'" placement="top">
+                  <el-icon
+                    :class="['draft-valid-icon', draft.valid ? 'valid' : 'invalid']"
+                  >
+                    <CircleCheck v-if="draft.valid" />
+                    <CircleClose v-else />
+                  </el-icon>
+                </el-tooltip>
+                <el-tag
+                  :type="draftStatusTagType(draft.status)"
+                  effect="light"
+                  size="small"
+                >
+                  {{ draftStatusText(draft.status) }}
+                </el-tag>
+                <span class="draft-version">v{{ draft.schema_version }}</span>
+                <span class="draft-time">{{ formatTime(draft.created_at) }}</span>
+              </div>
+              <div class="draft-actions">
+                <el-button
+                  size="small"
+                  link
+                  type="primary"
+                  @click="handleViewDraftJson(draft)"
+                >
+                  查看 JSON
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 阶段时间线 -->
         <div class="timeline-section">
           <h4 class="section-title">阶段执行时间线</h4>
           <el-empty
@@ -179,20 +271,51 @@
         </div>
       </div>
     </el-drawer>
+
+    <!-- 草案 JSON 查看抽屉 -->
+    <el-drawer
+      v-model="draftJsonDrawerVisible"
+      title="草案详情"
+      size="40%"
+    >
+      <div v-if="currentDraft" class="draft-json-content">
+        <el-descriptions :column="1" border size="small">
+          <el-descriptions-item label="类型">
+            <el-tag :type="draftKindTagType(currentDraft.kind)" effect="dark" size="small">
+              {{ currentDraft.kind === 'pom' ? 'POM' : '矩阵' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="draftStatusTagType(currentDraft.status)" effect="light" size="small">
+              {{ draftStatusText(currentDraft.status) }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="schema_version">v{{ currentDraft.schema_version }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ formatTime(currentDraft.created_at) }}</el-descriptions-item>
+        </el-descriptions>
+
+        <div class="json-section">
+          <h4 class="section-title">JSON 内容</h4>
+          <pre class="json-block"><code>{{ formatJson(currentDraft.content) }}</code></pre>
+        </div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus, View } from '@element-plus/icons-vue'
+import { Plus, View, MagicStick, Share, CircleCheck, CircleClose } from '@element-plus/icons-vue'
 import {
   getTasksetList,
   createTaskset,
   getTasksetDetail,
+  runStage,
 } from '@/api/tasksets'
 import { getRecordingList } from '@/api/recording'
 import { formatTime } from '@/utils/format'
+import { createPoller } from '@/utils/polling'
 
 // ---- state ----
 const loading = ref(false)
@@ -212,15 +335,27 @@ const detailDrawerVisible = ref(false)
 const currentDetail = ref(null)
 const detailLoading = ref(false)
 
+// 阶段执行状态
+const stageRunning = ref(null) // 'extract' | 'design' | null
+let detailPoller = null
+
+// 草案 JSON 抽屉
+const draftJsonDrawerVisible = ref(false)
+const currentDraft = ref(null)
+
 // ---- 常量 / 工具 ----
 const STATUS_MAP = {
-  created:     { text: '已创建', type: 'info' },
-  replaying:   { text: '回放中', type: 'primary' },
-  replay_done: { text: '回放完成', type: 'success' },
-  failed:      { text: '失败', type: 'danger' },
-  success:     { text: '成功', type: 'success' },
-  running:     { text: '执行中', type: 'primary' },
-  pending:     { text: '等待中', type: 'info' },
+  created:       { text: '已创建', type: 'info' },
+  replaying:     { text: '回放中', type: 'primary' },
+  replay_done:   { text: '回放完成', type: 'success' },
+  extracting:    { text: '提取中', type: 'primary' },
+  extract_done:  { text: '提取完成', type: 'success' },
+  designing:     { text: '设计中', type: 'primary' },
+  design_done:   { text: '设计完成', type: 'success' },
+  failed:        { text: '失败', type: 'danger' },
+  success:       { text: '成功', type: 'success' },
+  running:       { text: '执行中', type: 'primary' },
+  pending:       { text: '等待中', type: 'info' },
 }
 
 function statusTagType(status) {
@@ -234,14 +369,60 @@ function timelineItemType(status) {
   const typeMap = {
     success: 'success',
     replay_done: 'success',
+    extract_done: 'success',
+    design_done: 'success',
     failed: 'danger',
     replaying: 'primary',
+    extracting: 'primary',
+    designing: 'primary',
     running: 'primary',
     created: 'info',
     pending: 'info',
   }
   return typeMap[status] || 'info'
 }
+
+// 草案相关
+function draftKindTagType(kind) {
+  return kind === 'pom' ? 'purple' : 'cyan'
+}
+
+const DRAFT_STATUS_MAP = {
+  draft:    { text: '草稿', type: 'info' },
+  approved: { text: '已通过', type: 'success' },
+  rejected: { text: '已驳回', type: 'danger' },
+}
+
+function draftStatusTagType(status) {
+  return DRAFT_STATUS_MAP[status]?.type || 'info'
+}
+function draftStatusText(status) {
+  return DRAFT_STATUS_MAP[status]?.text || status || '未知'
+}
+
+function formatJson(obj) {
+  if (obj == null) return ''
+  try {
+    return JSON.stringify(obj, null, 2)
+  } catch (e) {
+    return String(obj)
+  }
+}
+
+// 是否可执行 A1 提取：replay_done 或 failed 状态
+const canRunExtract = computed(() => {
+  if (!currentDetail.value) return false
+  if (stageRunning.value) return false
+  const s = currentDetail.value.status
+  return s === 'replay_done' || s === 'failed'
+})
+
+// 是否可执行 A2 设计：extract_done 状态
+const canRunDesign = computed(() => {
+  if (!currentDetail.value) return false
+  if (stageRunning.value) return false
+  return currentDetail.value.status === 'extract_done'
+})
 
 // ---- actions ----
 async function fetchList() {
@@ -314,9 +495,75 @@ async function handleViewDetail(row) {
   }
 }
 
+function stopDetailPoller() {
+  if (detailPoller) {
+    detailPoller.stop()
+    detailPoller = null
+  }
+}
+
+function handleDetailClose() {
+  stopDetailPoller()
+  stageRunning.value = null
+}
+
+// 执行阶段（A1 提取 / A2 设计）
+async function handleRunStage(stage) {
+  if (!currentDetail.value) return
+  stageRunning.value = stage
+  try {
+    // 提交阶段任务，后端返回 202
+    await runStage(currentDetail.value.id, stage)
+    ElMessage.info(`${stage === 'extract' ? 'A1 提取' : 'A2 设计'}任务已提交，智能体执行中…`)
+
+    // 开始轮询详情
+    const pollStage = stage
+    const targetRunningStatus = pollStage === 'extract' ? 'extracting' : 'designing'
+    const targetDoneStatus = pollStage === 'extract' ? 'extract_done' : 'design_done'
+
+    detailPoller = createPoller({
+      fetchFn: () => getTasksetDetail(currentDetail.value.id),
+      interval: 3000,
+      isDone: (data) => data.status !== targetRunningStatus,
+      onTick: (data) => {
+        currentDetail.value = data
+      },
+      onDone: (data) => {
+        currentDetail.value = data
+        stageRunning.value = null
+        if (data.status === targetDoneStatus) {
+          ElMessage.success(`${pollStage === 'extract' ? 'A1 提取' : 'A2 设计'}执行成功`)
+        } else if (data.status === 'failed') {
+          ElMessage.error(`${pollStage === 'extract' ? 'A1 提取' : 'A2 设计'}执行失败`)
+        } else {
+          ElMessage.info(`状态已更新：${statusText(data.status)}`)
+        }
+        fetchList()
+      },
+      onError: () => {
+        stageRunning.value = null
+        // 错误已由拦截器提示
+      },
+    })
+    detailPoller.start()
+  } catch (err) {
+    stageRunning.value = null
+    // 409 等错误已由拦截器提示
+  }
+}
+
+function handleViewDraftJson(draft) {
+  currentDraft.value = draft
+  draftJsonDrawerVisible.value = true
+}
+
 // ---- 生命周期 ----
 onMounted(() => {
   fetchList()
+})
+
+onBeforeUnmount(() => {
+  stopDetailPoller()
 })
 </script>
 
@@ -366,8 +613,19 @@ onMounted(() => {
   font-size: 12px;
 }
 
-.timeline-section {
+/* 智能体阶段操作区 */
+.stage-actions-section {
   margin-top: 24px;
+}
+
+.stage-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stage-hint {
+  margin-top: 10px;
 }
 
 .section-title {
@@ -375,6 +633,91 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 600;
   color: var(--do-fg);
+}
+
+/* 草案列表 */
+.drafts-section {
+  margin-top: 24px;
+}
+
+.draft-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.draft-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--do-bg);
+  border-radius: 6px;
+  border: 1px solid var(--do-border, #e4e7ed);
+}
+
+.draft-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.draft-kind {
+  font-weight: 600;
+}
+
+.draft-valid-icon {
+  font-size: 18px;
+}
+
+.draft-valid-icon.valid {
+  color: var(--do-success, #67c23a);
+}
+
+.draft-valid-icon.invalid {
+  color: var(--do-danger, #f56c6c);
+}
+
+.draft-version {
+  font-size: 12px;
+  color: var(--do-fg-secondary);
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.draft-time {
+  font-size: 12px;
+  color: var(--do-fg-tertiary);
+}
+
+/* 草案 JSON 内容 */
+.draft-json-content {
+  padding-right: 8px;
+}
+
+.json-section {
+  margin-top: 20px;
+}
+
+.json-block {
+  margin: 0;
+  padding: 12px;
+  background: var(--do-bg);
+  border: 1px solid var(--do-border, #e4e7ed);
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 60vh;
+  overflow: auto;
+  color: var(--do-fg);
+}
+
+/* 时间线 */
+.timeline-section {
+  margin-top: 24px;
 }
 
 .timeline-content {

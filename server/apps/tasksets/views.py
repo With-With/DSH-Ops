@@ -1,4 +1,5 @@
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import TaskSet
@@ -43,3 +44,32 @@ class TaskSetViewSet(viewsets.ReadOnlyModelViewSet):
         # 重新序列化（带 stage_jobs）
         out = TaskSetSerializer(instance=task_set)
         return Response(out.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="stages")
+    def run_stage(self, request, pk=None):
+        """POST /api/tasksets/<id>/stages/ — 异步触发 A1/A2 阶段。
+
+        body: {stage: "extract"|"design"}
+        守卫通过 -> 202（status=extracting/designing，前端轮询详情）；
+        守卫失败/阶段进行中 -> 409。
+        """
+        from .stages import run_stage_async
+
+        stage = (request.data or {}).get("stage")
+        if stage not in ("extract", "design"):
+            return Response(
+                {"detail": "stage 必须是 extract 或 design"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        task_set = self.get_object()
+        try:
+            task_set = run_stage_async(task_set, stage)
+        except ValueError as exc:
+            return Response(
+                {"detail": str(exc), "status": task_set.status},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        out = TaskSetSerializer(instance=task_set)
+        return Response(out.data, status=status.HTTP_202_ACCEPTED)

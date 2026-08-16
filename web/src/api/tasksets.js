@@ -34,3 +34,19 @@ export function createTaskset({ name, recording_id }) {
     timeout: 120000,
   })
 }
+
+/**
+ * 触发任务集阶段（异步）
+ * POST /tasksets/<id>/stages/ { stage: "extract" | "design" }
+ * 返回 202 Accepted { id, status, current_stage }
+ * 注意：axios 默认 2xx 都 resolve，202 不是错误，无需 validateStatus 配置
+ * 超时 30s（提交动作本身很快，真正执行在后端异步）
+ */
+export function runStage(id, stage) {
+  return request({
+    url: `/tasksets/${id}/stages/`,
+    method: 'post',
+    data: { stage },
+    timeout: 30000,
+  })
+}

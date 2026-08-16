@@ -18,6 +18,10 @@ class TaskSet(BaseModel):
         ("created", "已创建"),
         ("replaying", "回放中"),
         ("replay_done", "回放完成"),
+        ("extracting", "抽取中"),
+        ("extract_done", "抽取完成"),
+        ("designing", "设计中"),
+        ("design_done", "设计完成"),
         ("failed", "失败"),
     ]
 

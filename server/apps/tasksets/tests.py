@@ -54,11 +54,12 @@ class StateMachineTransitionTests(TestCase):
         with self.assertRaises(ValueError):
             can_transition("created", "bogus")
 
-    def test_failed_is_terminal(self):
-        """failed 是终态，不能转去任何状态。"""
-        self.assertEqual(len(allowed_transitions["failed"]), 0)
-        for target in ["created", "replaying", "replay_done"]:
-            with self.assertRaises(ValueError):
+    def test_failed_retry_path(self):
+        """P2: failed 后可重入 extracting（重试路径），其余目标非法。"""
+        self.assertEqual(allowed_transitions["failed"], {"extracting"})
+        self.assertTrue(can_transition("failed", "extracting"))
+        for target in ["created", "replaying", "replay_done", "extract_done", "designing", "design_done"]:
+            with self.assertRaises(ValueError, msg=f"failed -> {target} should fail"):
                 can_transition("failed", target)
 
 

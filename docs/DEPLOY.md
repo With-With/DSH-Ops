@@ -72,10 +72,33 @@ powershell -ExecutionPolicy Bypass -File ..\scripts\smoke_p1.ps1
    可在「回放中心」页面直接下载，或用 `npx playwright show-trace <文件>` 本地打开。
 3. **演示登录页**：`/api/demo/login/`（平台自带），配套金样本脚本 `scripts/demo_login_recorded.py`，
    供录制/回放链路自包含验证。
-4. **回放接口为同步执行**（30~90s），前端已设 120s 超时；P2 引入 Celery 后改异步。
-5. **requirements.txt**：`pip install -r server\requirements.txt`（P1 起新增 playwright）。
-   国内网络若超时（files.pythonhosted.org 不通），加清华镜像：
+4. **回放接口默认同步执行**（30~90s），前端已设 120s 超时；P2 起支持可选异步（见四C-3）。
+5. **requirements.txt**：`pip install -r server\requirements.txt`（P1 起含 playwright，P2 起含
+   jsonschema/mcp）。国内网络若超时（files.pythonhosted.org 不通），加清华镜像：
    `pip install -r server\requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`。
+
+## 四C、P2 补充说明（DSH 智能体阶段 A1/A2 + 草案评审）
+
+1. **AgentGateway 运行模式**：环境变量 `DSHOPS_AGENT_MODE`
+   - `mock`（测试默认）：不调 LLM，返回 `apps/agent_runtime/fixtures/` 金样本（POM/matrix）；
+   - `real`（默认）：经平台 dsh（`agent/runtime/`，锁 0.1.0-rc.6）以 `--profile headless` 执行阶段指令，
+     stdout 取最终回答并解析 JSON。超时 `DSHOPS_AGENT_TIMEOUT`（默认 300s）。
+   - **指令传递**：完整指令写入工作区 `task.md`，命令行只传短指令（Windows cmd.exe
+     命令行 8191 字符上限，A1 指令含 schema 全文实测 9807 字符必超；智能体读取工作区文件执行）。
+2. **DSH_HOME 与凭据**：默认**继承用户全局 `~/.dsh`**（本机已可用的凭据直接生效）；
+   隔离模式设 `DSHOPS_AGENT_HOME=<目录>` 后需自行在该 home 配置模型凭据。
+3. **A1/A2 异步语义**：`POST /api/tasksets/<id>/stages/` {stage: extract|design} 返回 202，
+   前端轮询任务集详情（extracting/designing -> 终态）；守卫失败 409。
+   回放可选异步：`POST /api/replays/?async=1` 立即返回 running。
+4. **元素并入**：A1 产出的 POM 元素经 search-first 三级匹配后并入元素仓（high 复用 / none 新建，
+   source=recording），不会重复建档。
+5. **草案评审**：A1/A2 产出 pom/matrix 草案（经 contracts JSON Schema 校验），
+   在「评审中心」通过/驳回（终态不可改，重评 409）。
+6. **MCP server**（elements query 工具，供 DSH 智能体调用）：
+   `..\venv\Scripts\python.exe manage.py run_mcp_server`（stdio 协议；
+   注册进 dsh profile 的方式见 `docs/skills-local/backend-agent-runtime/SKILL.md`）。
+7. **P2 冒烟**：`powershell -ExecutionPolicy Bypass -File scripts\smoke_p2.ps1`（mock 全链）；
+   真实链路加 `-Real`（会真实调用 DSH，耗时约 1-3 分钟/阶段）。
 
 ## 五、常见问题
 

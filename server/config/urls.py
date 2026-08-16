@@ -12,4 +12,6 @@ urlpatterns = [
     path("api/", include("apps.asset_repo.urls")),
     path("api/", include("apps.tasksets.urls")),
     path("api/", include("apps.testdata.urls")),
+    path("api/", include("apps.agent_runtime.urls")),
+    path("api/", include("apps.reviews.urls")),
 ]

@@ -83,11 +83,15 @@ def _resolve_page(pages: List, page_prefix: str, warnings: List[str]):
 
 def run_replay(recording, task_set_id: Optional[int] = None,
                headless: Optional[bool] = None,
-               artifacts_dir: Optional[str] = None) -> "ReplayRun":
+               artifacts_dir: Optional[str] = None,
+               replay_run: Optional["ReplayRun"] = None) -> "ReplayRun":
     """执行一次回放，返回已保存的 ReplayRun 对象。
 
     同步执行，耗时 30~90s。任何异常都会被捕获并写入 error 字段。
     Playwright 相关 import 在函数内部，失败时可降级。
+
+    replay_run: 可选——传已存在实例时复用更新（P2 异步路径预建记录），
+    否则内部新建。注意：跨线程使用时须在目标线程内重新 fetch。
     """
     # 延迟导入，避免启动时依赖
     try:
@@ -119,14 +123,28 @@ def run_replay(recording, task_set_id: Optional[int] = None,
         base_dir = Path(__file__).resolve().parent.parent.parent / "artifacts" / "traces"
     base_dir.mkdir(parents=True, exist_ok=True)
 
-    # 先建一条 running 状态的记录
-    replay_run = ReplayRun.objects.create(
-        recording=recording,
-        task_set_id=task_set_id,
-        status="running",
-        steps_total=len(actions),
-        steps_passed=0,
-    )
+    # 记录：传入实例则复用（异步路径预建），否则新建 running 记录
+    if replay_run is not None:
+        replay_run.recording = recording
+        replay_run.task_set_id = task_set_id
+        replay_run.status = "running"
+        replay_run.steps_total = len(actions)
+        replay_run.steps_passed = 0
+        replay_run.error = ""
+        replay_run.save(
+            update_fields=[
+                "recording", "task_set_id", "status", "steps_total",
+                "steps_passed", "error", "updated_at",
+            ]
+        )
+    else:
+        replay_run = ReplayRun.objects.create(
+            recording=recording,
+            task_set_id=task_set_id,
+            status="running",
+            steps_total=len(actions),
+            steps_passed=0,
+        )
 
     trace_dir = base_dir / f"replay_{replay_run.pk}"
     trace_dir.mkdir(parents=True, exist_ok=True)

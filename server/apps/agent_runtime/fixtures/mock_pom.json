@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0.0-dev",
+  "source": {
+    "recording_id": "1",
+    "trace_artifact_id": "trace_demo_login"
+  },
+  "pages": [
+    {
+      "id": "page_0",
+      "name": "演示登录页",
+      "url_pattern": "http://127.0.0.1:8000/api/demo/login/",
+      "matched_existing_page_id": null
+    }
+  ],
+  "elements": [
+    {
+      "id": "elem_0",
+      "page_id": "page_0",
+      "name": "请输入用户名",
+      "role": "textbox",
+      "candidates": [
+        {"type": "role", "value": "textbox", "priority": 0, "robustness": "strong"},
+        {"type": "placeholder", "value": "请输入用户名", "priority": 1, "robustness": "medium"}
+      ],
+      "snapshot_hash": null,
+      "exists_in_repo": false
+    },
+    {
+      "id": "elem_1",
+      "page_id": "page_0",
+      "name": "请输入密码",
+      "role": "textbox",
+      "candidates": [
+        {"type": "role", "value": "textbox", "priority": 0, "robustness": "strong"},
+        {"type": "placeholder", "value": "请输入密码", "priority": 1, "robustness": "medium"}
+      ],
+      "snapshot_hash": null,
+      "exists_in_repo": false
+    },
+    {
+      "id": "elem_2",
+      "page_id": "page_0",
+      "name": "登录",
+      "role": "button",
+      "candidates": [
+        {"type": "role", "value": "button", "priority": 0, "robustness": "strong"},
+        {"type": "text", "value": "登录", "priority": 1, "robustness": "medium"}
+      ],
+      "snapshot_hash": null,
+      "exists_in_repo": false
+    }
+  ],
+  "actions": [
+    {"index": 0, "page_id": "page_0", "type": "goto", "element_id": null, "value": "http://127.0.0.1:8000/api/demo/login/", "param_ref": null, "raw_code": "page.goto(\"http://127.0.0.1:8000/api/demo/login/\")"},
+    {"index": 1, "page_id": "page_0", "type": "fill", "element_id": "elem_0", "value": "testadmin", "param_ref": "username", "raw_code": "page.get_by_role(\"textbox\", name=\"请输入用户名\").fill(\"testadmin\")"},
+    {"index": 2, "page_id": "page_0", "type": "fill", "element_id": "elem_1", "value": null, "param_ref": "password", "raw_code": "page.get_by_role(\"textbox\", name=\"请输入密码\").fill(\"admin123456\")"},
+    {"index": 3, "page_id": "page_0", "type": "click", "element_id": "elem_2", "value": null, "param_ref": null, "raw_code": "page.get_by_role(\"button\", name=\"登录\", exact=True).click()"},
+    {"index": 4, "page_id": "page_0", "type": "click", "element_id": null, "value": null, "param_ref": null, "raw_code": "page.get_by_text(\"欢迎回来\").click()"}
+  ],
+  "params": [
+    {"name": "username", "example_value": "testadmin", "source_action_index": 1, "secret": false},
+    {"name": "password", "example_value": "admin123456", "source_action_index": 2, "secret": true}
+  ],
+  "confidence": 0.9
+}

@@ -1,5 +1,7 @@
 import os
+import threading
 
+from django.db import connections
 from django.http import FileResponse, Http404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -34,11 +36,14 @@ class ReplayRunViewSet(viewsets.GenericViewSet):
         return Response(serializer.data)
 
     def create(self, request):
-        """POST /api/replays/ — 创建并同步执行回放。
+        """POST /api/replays/ — 创建并执行回放。
 
         请求体: { recording_id, task_set_id?, headless? }
-        同步执行完成后返回完整 ReplayRun 序列化结果。
+        默认同步执行完成后返回完整 ReplayRun 序列化结果；
+        `?async=1` 时立即返回 202（status=running），线程内执行，前端轮询
+        GET /api/replays/<id>/ 至终态。
         """
+        async_mode = request.query_params.get("async") == "1"
         serializer = ReplayCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -54,6 +59,40 @@ class ReplayRunViewSet(viewsets.GenericViewSet):
                 {"detail": f"Recording #{recording_id} 不存在"},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        if async_mode:
+            # 预建 running 记录，线程内跑完回写；线程内重新 fetch（跨线程安全）
+            replay_run = ReplayRun.objects.create(
+                recording=recording,
+                task_set_id=task_set_id,
+                status="running",
+                steps_total=0,
+                steps_passed=0,
+            )
+            run_pk = replay_run.pk
+            recording_pk = recording.pk
+
+            def _async_run():
+                try:
+                    from apps.recorder.models import Recording as _Recording
+
+                    rec = _Recording.objects.get(pk=recording_pk)
+                    run = ReplayRun.objects.get(pk=run_pk)
+                    run_replay(rec, task_set_id=task_set_id, headless=headless, replay_run=run)
+                except Exception as exc:  # 兜底：绝不静默丢线程
+                    try:
+                        run = ReplayRun.objects.get(pk=run_pk)
+                        run.status = "failed"
+                        run.error = f"async replay error: {exc}"
+                        run.save(update_fields=["status", "error", "updated_at"])
+                    except Exception:
+                        pass
+                finally:
+                    connections.close_all()
+
+            threading.Thread(target=_async_run, daemon=True).start()
+            out = ReplayRunSerializer(replay_run, context={"request": request, "view": self}).data
+            return Response(out, status=status.HTTP_202_ACCEPTED)
 
         try:
             replay_run = run_replay(

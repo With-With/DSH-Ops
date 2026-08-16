@@ -32,8 +32,12 @@ if TYPE_CHECKING:
 allowed_transitions: dict[str, set[str]] = {
     "created": {"replaying", "failed"},
     "replaying": {"replay_done", "failed"},
-    "replay_done": {"failed"},  # 后续阶段可扩展
-    "failed": set(),  # 终态
+    "replay_done": {"extracting", "failed"},
+    "extracting": {"extract_done", "failed"},
+    "extract_done": {"designing", "failed"},
+    "designing": {"design_done", "failed"},
+    "design_done": {"failed"},
+    "failed": {"extracting"},  # 失败后可重入抽取阶段（重试路径）
 }
 
 
