@@ -236,44 +236,58 @@
     <el-dialog
       v-model="manualDialogVisible"
       title="手动录制"
-      width="680px"
+      width="720px"
       :close-on-click-modal="false"
       destroy-on-close
+      class="manual-dialog"
     >
-      <el-form :model="manualForm" label-width="80px" @submit.prevent>
-        <el-form-item label="脚本名称" required>
+      <div class="manual-dialog-body">
+        <div class="form-section">
+          <div class="section-label">
+            <span class="label-text">脚本名称</span>
+            <span class="label-required">*</span>
+          </div>
           <el-input
             v-model="manualForm.name"
             placeholder="请输入脚本名称，如：登录流程_v1"
             maxlength="120"
             show-word-limit
+            size="large"
           />
-        </el-form-item>
+        </div>
 
-        <el-form-item label="脚本内容" required>
-          <div class="textarea-wrapper">
-            <el-input
-              v-model="manualForm.content"
-              type="textarea"
-              :rows="12"
-              placeholder="粘贴录制生成的 Python 脚本，或上传 .py 文件..."
-            />
-            <div class="upload-row">
-              <el-upload
-                :show-file-list="false"
-                :before-upload="handleManualBeforeUpload"
-                accept=".py,.txt"
-              >
-                <el-button :icon="Upload">上传 .py 文件</el-button>
-              </el-upload>
-              <span class="upload-tip">支持 .py / .txt 文件，内容将填入上方文本框</span>
+        <div class="form-section">
+          <div class="section-label-row">
+            <div class="section-label">
+              <span class="label-text">脚本内容</span>
+              <span class="label-required">*</span>
             </div>
+            <el-upload
+              :show-file-list="false"
+              :before-upload="handleManualBeforeUpload"
+              accept=".py,.txt"
+            >
+              <el-button type="primary" link :icon="Upload" size="small">
+                上传 .py / .txt 文件
+              </el-button>
+            </el-upload>
           </div>
-        </el-form-item>
-      </el-form>
+          <el-input
+            v-model="manualForm.content"
+            type="textarea"
+            :rows="14"
+            placeholder="在此粘贴 Playwright / Selenium 等录制生成的 Python 脚本，提交后将自动解析动作与定位器..."
+            class="content-textarea"
+          />
+          <div class="textarea-hint">
+            <el-icon><InfoFilled /></el-icon>
+            <span>支持 Python 脚本，上传文件会自动填入上方文本框</span>
+          </div>
+        </div>
+      </div>
       <template #footer>
-        <el-button @click="manualDialogVisible = false">取消</el-button>
-        <el-button type="primary" :icon="Promotion" :loading="manualSubmitting" @click="handleManualSubmit">
+        <el-button size="large" @click="manualDialogVisible = false">取消</el-button>
+        <el-button type="primary" size="large" :icon="Promotion" :loading="manualSubmitting" @click="handleManualSubmit">
           {{ manualSubmitting ? '解析提交中...' : '提交解析' }}
         </el-button>
       </template>

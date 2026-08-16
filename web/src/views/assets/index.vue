@@ -348,7 +348,7 @@
           show-icon
           :closable="false"
         />
-        <p class="warning-tip">⚠️ 删除后无法恢复，请谨慎操作。</p>
+        <p class="warning-tip">删除为软删除（记录移入回收），请确认。</p>
       </div>
       <template #footer>
         <el-button @click="deleteDialogVisible = false">取消</el-button>

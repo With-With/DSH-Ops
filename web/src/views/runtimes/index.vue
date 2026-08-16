@@ -208,7 +208,7 @@
             同时删除 DSH_HOME 目录
           </el-checkbox>
         </div>
-        <p class="warning-tip">⚠️ 勾选后相关目录及其所有内容将被永久删除，无法恢复。</p>
+        <p class="warning-tip">⚠️ 勾选后相关目录及其所有内容将被删除。</p>
       </div>
       <template #footer>
         <el-button @click="deleteDialogVisible = false">取消</el-button>
